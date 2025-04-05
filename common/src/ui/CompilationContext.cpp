@@ -20,7 +20,7 @@
 #include "CompilationContext.h"
 
 #include "el/EvaluationContext.h"
-#include "el/Interpolator.h"
+#include "el/Interpolate.h"
 #include "el/Types.h"
 
 #include "kdl/memory_utils.h"
@@ -50,14 +50,21 @@ bool CompilationContext::test() const
   return m_test;
 }
 
-std::string CompilationContext::interpolate(const std::string& input) const
+Result<std::string> CompilationContext::interpolate(const std::string& input) const
 {
-  return el::interpolate(input, el::EvaluationContext{*m_variables});
+  return el::interpolate(*m_variables, input);
 }
 
-std::string CompilationContext::variableValue(const std::string& variableName) const
+Result<std::string> CompilationContext::variableValue(
+  const std::string& variableName) const
 {
-  return m_variables->value(variableName).convertTo(el::ValueType::String).stringValue();
+  return el::withEvaluationContext(
+    [&](auto& context) {
+      return context.variableValue(variableName)
+        .convertTo(context, el::ValueType::String)
+        .stringValue(context);
+    },
+    *m_variables);
 }
 
 } // namespace tb::ui

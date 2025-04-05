@@ -32,8 +32,10 @@
 #include "Preference.h"
 #include "Result.h"
 
-#include "kdl/result.h"
 #include "kdl/vector_set.h"
+
+#include <fmt/format.h>
+#include <fmt/std.h>
 
 #include <filesystem>
 #include <map>
@@ -94,7 +96,7 @@ public:
     auto* pref = dynamic_cast<Preference<T>*>(prefBase);
     ensure(
       pref != nullptr,
-      ("Preference " + path.string() + " must be of the expected type").c_str());
+      fmt::format("Preference {} must be of the expected type", path).c_str());
     return *pref;
   }
 
@@ -157,7 +159,7 @@ private:
   using DynamicPreferences =
     std::map<std::filesystem::path, std::unique_ptr<PreferenceBase>>;
 
-  QString m_preferencesFilePath;
+  std::filesystem::path m_preferencesFilePath;
   bool m_saveInstantly;
   UnsavedPreferences m_unsavedPreferences;
   QTimer m_saveTimer;
@@ -293,12 +295,13 @@ using ReadPreferencesResult = Result<
 using WritePreferencesResult =
   Result<void, PreferenceErrors::FileAccessError, PreferenceErrors::LockFileError>;
 
-QString preferenceFilePath();
-ReadPreferencesResult readPreferencesFromFile(const QString& path);
+std::filesystem::path preferenceFilePath();
+ReadPreferencesResult readPreferencesFromFile(const std::filesystem::path& path);
 ReadPreferencesResult readPreferences();
 
 WritePreferencesResult writePreferencesToFile(
-  const QString& path, const std::map<std::filesystem::path, QJsonValue>& prefs);
+  const std::filesystem::path& path,
+  const std::map<std::filesystem::path, QJsonValue>& prefs);
 ReadPreferencesResult parsePreferencesFromJson(const QByteArray& jsonData);
 QByteArray writePreferencesToJson(
   const std::map<std::filesystem::path, QJsonValue>& prefs);

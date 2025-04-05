@@ -1,37 +1,15 @@
 set(COMMON_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 set(COMMON_SOURCE
-        ${COMMON_SOURCE_DIR}/mdl/ColorRange.cpp
-        ${COMMON_SOURCE_DIR}/mdl/DecalDefinition.cpp
-        ${COMMON_SOURCE_DIR}/mdl/EntityDefinition.cpp
-        ${COMMON_SOURCE_DIR}/mdl/EntityDefinitionFileSpec.cpp
-        ${COMMON_SOURCE_DIR}/mdl/EntityDefinitionGroup.cpp
-        ${COMMON_SOURCE_DIR}/mdl/EntityDefinitionManager.cpp
-        ${COMMON_SOURCE_DIR}/mdl/EntityModel.cpp
-        ${COMMON_SOURCE_DIR}/mdl/EntityModelDataResource.cpp
-        ${COMMON_SOURCE_DIR}/mdl/EntityModelManager.cpp
-        ${COMMON_SOURCE_DIR}/mdl/Material.cpp
-        ${COMMON_SOURCE_DIR}/mdl/MaterialCollection.cpp
-        ${COMMON_SOURCE_DIR}/mdl/MaterialManager.cpp
-        ${COMMON_SOURCE_DIR}/mdl/ModelDefinition.cpp
-        ${COMMON_SOURCE_DIR}/mdl/ModelSpecification.cpp
-        ${COMMON_SOURCE_DIR}/mdl/Palette.cpp
-        ${COMMON_SOURCE_DIR}/mdl/PropertyDefinition.cpp
-        ${COMMON_SOURCE_DIR}/mdl/Quake3Shader.cpp
-        ${COMMON_SOURCE_DIR}/mdl/Texture.cpp
-        ${COMMON_SOURCE_DIR}/mdl/TextureBuffer.cpp
-        ${COMMON_SOURCE_DIR}/mdl/TextureResource.cpp
         ${COMMON_SOURCE_DIR}/Color.cpp
         ${COMMON_SOURCE_DIR}/el/ELExceptions.cpp
         ${COMMON_SOURCE_DIR}/el/EvaluationContext.cpp
-        ${COMMON_SOURCE_DIR}/el/EvaluationTrace.cpp
         ${COMMON_SOURCE_DIR}/el/Expression.cpp
-        ${COMMON_SOURCE_DIR}/el/Interpolator.cpp
+        ${COMMON_SOURCE_DIR}/el/Interpolate.cpp
         ${COMMON_SOURCE_DIR}/el/Types.cpp
         ${COMMON_SOURCE_DIR}/el/Value.cpp
         ${COMMON_SOURCE_DIR}/el/VariableStore.cpp
         ${COMMON_SOURCE_DIR}/Ensure.cpp
-        ${COMMON_SOURCE_DIR}/Error.cpp
         ${COMMON_SOURCE_DIR}/Exceptions.cpp
         ${COMMON_SOURCE_DIR}/FileLocation.cpp
         ${COMMON_SOURCE_DIR}/FileLogger.cpp
@@ -57,6 +35,7 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/io/FgdParser.cpp
         ${COMMON_SOURCE_DIR}/io/File.cpp
         ${COMMON_SOURCE_DIR}/io/FileSystem.cpp
+        ${COMMON_SOURCE_DIR}/io/FileSystemMetadata.cpp
         ${COMMON_SOURCE_DIR}/io/GameConfigParser.cpp
         ${COMMON_SOURCE_DIR}/io/GameEngineConfigParser.cpp
         ${COMMON_SOURCE_DIR}/io/GameEngineConfigWriter.cpp
@@ -82,6 +61,8 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/io/NodeSerializer.cpp
         ${COMMON_SOURCE_DIR}/io/NodeWriter.cpp
         ${COMMON_SOURCE_DIR}/io/ObjSerializer.cpp
+        ${COMMON_SOURCE_DIR}/io/ParseModelDefinition.cpp
+        ${COMMON_SOURCE_DIR}/io/ParserException.cpp
         ${COMMON_SOURCE_DIR}/io/ParserStatus.cpp
         ${COMMON_SOURCE_DIR}/io/PathInfo.cpp
         ${COMMON_SOURCE_DIR}/io/PathMatcher.cpp
@@ -116,10 +97,13 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/mdl/BrushFaceReference.cpp
         ${COMMON_SOURCE_DIR}/mdl/BrushNode.cpp
         ${COMMON_SOURCE_DIR}/mdl/ChangeBrushFaceAttributesRequest.cpp
+        ${COMMON_SOURCE_DIR}/mdl/CircleShape.cpp
+        ${COMMON_SOURCE_DIR}/mdl/ColorRange.cpp
         ${COMMON_SOURCE_DIR}/mdl/CompareHits.cpp
         ${COMMON_SOURCE_DIR}/mdl/CompilationConfig.cpp
         ${COMMON_SOURCE_DIR}/mdl/CompilationProfile.cpp
         ${COMMON_SOURCE_DIR}/mdl/CompilationTask.cpp
+        ${COMMON_SOURCE_DIR}/mdl/DecalDefinition.cpp
         ${COMMON_SOURCE_DIR}/mdl/EditorContext.cpp
         ${COMMON_SOURCE_DIR}/mdl/EmptyBrushEntityValidator.cpp
         ${COMMON_SOURCE_DIR}/mdl/EmptyGroupValidator.cpp
@@ -127,6 +111,13 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/mdl/EmptyPropertyValueValidator.cpp
         ${COMMON_SOURCE_DIR}/mdl/Entity.cpp
         ${COMMON_SOURCE_DIR}/mdl/EntityColor.cpp
+        ${COMMON_SOURCE_DIR}/mdl/EntityDefinition.cpp
+        ${COMMON_SOURCE_DIR}/mdl/EntityDefinitionFileSpec.cpp
+        ${COMMON_SOURCE_DIR}/mdl/EntityDefinitionGroup.cpp
+        ${COMMON_SOURCE_DIR}/mdl/EntityDefinitionManager.cpp
+        ${COMMON_SOURCE_DIR}/mdl/EntityModel.cpp
+        ${COMMON_SOURCE_DIR}/mdl/EntityModelDataResource.cpp
+        ${COMMON_SOURCE_DIR}/mdl/EntityModelManager.cpp
         ${COMMON_SOURCE_DIR}/mdl/EntityNode.cpp
         ${COMMON_SOURCE_DIR}/mdl/EntityNodeBase.cpp
         ${COMMON_SOURCE_DIR}/mdl/EntityNodeIndex.cpp
@@ -159,10 +150,15 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/mdl/LongPropertyValueValidator.cpp
         ${COMMON_SOURCE_DIR}/mdl/MapFacade.cpp
         ${COMMON_SOURCE_DIR}/mdl/MapFormat.cpp
+        ${COMMON_SOURCE_DIR}/mdl/Material.cpp
+        ${COMMON_SOURCE_DIR}/mdl/MaterialCollection.cpp
+        ${COMMON_SOURCE_DIR}/mdl/MaterialManager.cpp
         ${COMMON_SOURCE_DIR}/mdl/MissingClassnameValidator.cpp
         ${COMMON_SOURCE_DIR}/mdl/MissingDefinitionValidator.cpp
         ${COMMON_SOURCE_DIR}/mdl/MissingModValidator.cpp
         ${COMMON_SOURCE_DIR}/mdl/MixedBrushContentsValidator.cpp
+        ${COMMON_SOURCE_DIR}/mdl/ModelDefinition.cpp
+        ${COMMON_SOURCE_DIR}/mdl/ModelSpecification.cpp
         ${COMMON_SOURCE_DIR}/mdl/ModelUtils.cpp
         ${COMMON_SOURCE_DIR}/mdl/Node.cpp
         ${COMMON_SOURCE_DIR}/mdl/NodeCollection.cpp
@@ -170,6 +166,7 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/mdl/NodeVisitor.cpp
         ${COMMON_SOURCE_DIR}/mdl/NonIntegerVerticesValidator.cpp
         ${COMMON_SOURCE_DIR}/mdl/Object.cpp
+        ${COMMON_SOURCE_DIR}/mdl/Palette.cpp
         ${COMMON_SOURCE_DIR}/mdl/ParallelUVCoordSystem.cpp
         ${COMMON_SOURCE_DIR}/mdl/ParaxialUVCoordSystem.cpp
         ${COMMON_SOURCE_DIR}/mdl/PatchNode.cpp
@@ -178,15 +175,20 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/mdl/PointTrace.cpp
         ${COMMON_SOURCE_DIR}/mdl/Polyhedron_Instantiation.cpp
         ${COMMON_SOURCE_DIR}/mdl/PortalFile.cpp
+        ${COMMON_SOURCE_DIR}/mdl/PropertyDefinition.cpp
         ${COMMON_SOURCE_DIR}/mdl/PropertyKeyWithDoubleQuotationMarksValidator.cpp
         ${COMMON_SOURCE_DIR}/mdl/PropertyValueWithDoubleQuotationMarksValidator.cpp
         ${COMMON_SOURCE_DIR}/mdl/PushSelection.cpp
+        ${COMMON_SOURCE_DIR}/mdl/Quake3Shader.cpp
         ${COMMON_SOURCE_DIR}/mdl/SoftMapBoundsValidator.cpp
         ${COMMON_SOURCE_DIR}/mdl/Tag.cpp
         ${COMMON_SOURCE_DIR}/mdl/TagAttribute.cpp
         ${COMMON_SOURCE_DIR}/mdl/TagManager.cpp
         ${COMMON_SOURCE_DIR}/mdl/TagMatcher.cpp
         ${COMMON_SOURCE_DIR}/mdl/TagVisitor.cpp
+        ${COMMON_SOURCE_DIR}/mdl/Texture.cpp
+        ${COMMON_SOURCE_DIR}/mdl/TextureBuffer.cpp
+        ${COMMON_SOURCE_DIR}/mdl/TextureResource.cpp
         ${COMMON_SOURCE_DIR}/mdl/UVCoordSystem.cpp
         ${COMMON_SOURCE_DIR}/mdl/Validator.cpp
         ${COMMON_SOURCE_DIR}/mdl/ValidatorRegistry.cpp
@@ -269,7 +271,6 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/Thread.cpp
         ${COMMON_SOURCE_DIR}/TrenchBroomApp.cpp
         ${COMMON_SOURCE_DIR}/TrenchBroomStackWalker.cpp
-        ${COMMON_SOURCE_DIR}/Uuid.cpp
         ${COMMON_SOURCE_DIR}/ui/AboutDialog.cpp
         ${COMMON_SOURCE_DIR}/ui/ActionBuilder.cpp
         ${COMMON_SOURCE_DIR}/ui/ActionContext.cpp
@@ -380,6 +381,7 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/ui/KeyboardShortcutModel.cpp
         ${COMMON_SOURCE_DIR}/ui/KeySequenceEdit.cpp
         ${COMMON_SOURCE_DIR}/ui/Lasso.cpp
+        ${COMMON_SOURCE_DIR}/ui/LaunchGameEngine.cpp
         ${COMMON_SOURCE_DIR}/ui/LaunchGameEngineDialog.cpp
         ${COMMON_SOURCE_DIR}/ui/LayerEditor.cpp
         ${COMMON_SOURCE_DIR}/ui/LayerListBox.cpp
@@ -468,6 +470,9 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/ui/UpdateLinkedGroupsCommand.cpp
         ${COMMON_SOURCE_DIR}/ui/UpdateLinkedGroupsCommandBase.cpp
         ${COMMON_SOURCE_DIR}/ui/UpdateLinkedGroupsHelper.cpp
+        ${COMMON_SOURCE_DIR}/ui/UpdateConfig.cpp
+        ${COMMON_SOURCE_DIR}/ui/UpdatePreferencePane.cpp
+        ${COMMON_SOURCE_DIR}/ui/UpdateVersion.cpp
         ${COMMON_SOURCE_DIR}/ui/UVCameraTool.cpp
         ${COMMON_SOURCE_DIR}/ui/UVEditor.cpp
         ${COMMON_SOURCE_DIR}/ui/UVOffsetTool.cpp
@@ -487,41 +492,16 @@ set(COMMON_SOURCE
         ${COMMON_SOURCE_DIR}/ui/ViewPreferencePane.cpp
         ${COMMON_SOURCE_DIR}/ui/ViewUtils.cpp
         ${COMMON_SOURCE_DIR}/ui/WelcomeWindow.cpp
+        ${COMMON_SOURCE_DIR}/Uuid.cpp
 )
 
 set(COMMON_HEADER
-        ${COMMON_SOURCE_DIR}/mdl/AssetReference.h
-        ${COMMON_SOURCE_DIR}/mdl/AssetUtils.h
-        ${COMMON_SOURCE_DIR}/mdl/ColorRange.h
-        ${COMMON_SOURCE_DIR}/mdl/CreateResource.h
-        ${COMMON_SOURCE_DIR}/mdl/DecalDefinition.h
-        ${COMMON_SOURCE_DIR}/mdl/EntityDefinition.h
-        ${COMMON_SOURCE_DIR}/mdl/EntityDefinitionFileSpec.h
-        ${COMMON_SOURCE_DIR}/mdl/EntityDefinitionGroup.h
-        ${COMMON_SOURCE_DIR}/mdl/EntityDefinitionManager.h
-        ${COMMON_SOURCE_DIR}/mdl/EntityModel_Forward.h
-        ${COMMON_SOURCE_DIR}/mdl/EntityModel.h
-        ${COMMON_SOURCE_DIR}/mdl/EntityModelDataResource.h
-        ${COMMON_SOURCE_DIR}/mdl/EntityModelManager.h
-        ${COMMON_SOURCE_DIR}/mdl/Material.h
-        ${COMMON_SOURCE_DIR}/mdl/MaterialCollection.h
-        ${COMMON_SOURCE_DIR}/mdl/MaterialManager.h
-        ${COMMON_SOURCE_DIR}/mdl/ModelDefinition.h
-        ${COMMON_SOURCE_DIR}/mdl/ModelSpecification.h
-        ${COMMON_SOURCE_DIR}/mdl/Palette.h
-        ${COMMON_SOURCE_DIR}/mdl/PropertyDefinition.h
-        ${COMMON_SOURCE_DIR}/mdl/Quake3Shader.h
-        ${COMMON_SOURCE_DIR}/mdl/Resource.h
-        ${COMMON_SOURCE_DIR}/mdl/Texture.h
-        ${COMMON_SOURCE_DIR}/mdl/TextureBuffer.h
-        ${COMMON_SOURCE_DIR}/mdl/TextureResource.h
         ${COMMON_SOURCE_DIR}/Color.h
         ${COMMON_SOURCE_DIR}/el/EL_Forward.h
         ${COMMON_SOURCE_DIR}/el/ELExceptions.h
         ${COMMON_SOURCE_DIR}/el/EvaluationContext.h
-        ${COMMON_SOURCE_DIR}/el/EvaluationTrace.h
         ${COMMON_SOURCE_DIR}/el/Expression.h
-        ${COMMON_SOURCE_DIR}/el/Interpolator.h
+        ${COMMON_SOURCE_DIR}/el/Interpolate.h
         ${COMMON_SOURCE_DIR}/el/Types.h
         ${COMMON_SOURCE_DIR}/el/Value.h
         ${COMMON_SOURCE_DIR}/el/VariableStore.h
@@ -552,6 +532,7 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/io/FgdParser.h
         ${COMMON_SOURCE_DIR}/io/File.h
         ${COMMON_SOURCE_DIR}/io/FileSystem.h
+        ${COMMON_SOURCE_DIR}/io/FileSystemMetadata.h
         ${COMMON_SOURCE_DIR}/io/GameConfigParser.h
         ${COMMON_SOURCE_DIR}/io/GameEngineConfigParser.h
         ${COMMON_SOURCE_DIR}/io/GameEngineConfigWriter.h
@@ -577,7 +558,9 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/io/NodeSerializer.h
         ${COMMON_SOURCE_DIR}/io/NodeWriter.h
         ${COMMON_SOURCE_DIR}/io/ObjSerializer.h
+        ${COMMON_SOURCE_DIR}/io/ParseModelDefinition.h
         ${COMMON_SOURCE_DIR}/io/Parser.h
+        ${COMMON_SOURCE_DIR}/io/ParserException.h
         ${COMMON_SOURCE_DIR}/io/ParserStatus.h
         ${COMMON_SOURCE_DIR}/io/PathInfo.h
         ${COMMON_SOURCE_DIR}/io/PathMatcher.h
@@ -606,6 +589,8 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/Logger.h
         ${COMMON_SOURCE_DIR}/LoggerCache.h
         ${COMMON_SOURCE_DIR}/Macros.h
+        ${COMMON_SOURCE_DIR}/mdl/AssetReference.h
+        ${COMMON_SOURCE_DIR}/mdl/AssetUtils.h
         ${COMMON_SOURCE_DIR}/mdl/BezierPatch.h
         ${COMMON_SOURCE_DIR}/mdl/Brush.h
         ${COMMON_SOURCE_DIR}/mdl/BrushBuilder.h
@@ -617,10 +602,14 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/mdl/BrushGeometry.h
         ${COMMON_SOURCE_DIR}/mdl/BrushNode.h
         ${COMMON_SOURCE_DIR}/mdl/ChangeBrushFaceAttributesRequest.h
+        ${COMMON_SOURCE_DIR}/mdl/CircleShape.h
+        ${COMMON_SOURCE_DIR}/mdl/ColorRange.h
         ${COMMON_SOURCE_DIR}/mdl/CompareHits.h
         ${COMMON_SOURCE_DIR}/mdl/CompilationConfig.h
         ${COMMON_SOURCE_DIR}/mdl/CompilationProfile.h
         ${COMMON_SOURCE_DIR}/mdl/CompilationTask.h
+        ${COMMON_SOURCE_DIR}/mdl/CreateResource.h
+        ${COMMON_SOURCE_DIR}/mdl/DecalDefinition.h
         ${COMMON_SOURCE_DIR}/mdl/EditorContext.h
         ${COMMON_SOURCE_DIR}/mdl/EmptyBrushEntityValidator.h
         ${COMMON_SOURCE_DIR}/mdl/EmptyGroupValidator.h
@@ -628,6 +617,14 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/mdl/EmptyPropertyValueValidator.h
         ${COMMON_SOURCE_DIR}/mdl/Entity.h
         ${COMMON_SOURCE_DIR}/mdl/EntityColor.h
+        ${COMMON_SOURCE_DIR}/mdl/EntityDefinition.h
+        ${COMMON_SOURCE_DIR}/mdl/EntityDefinitionFileSpec.h
+        ${COMMON_SOURCE_DIR}/mdl/EntityDefinitionGroup.h
+        ${COMMON_SOURCE_DIR}/mdl/EntityDefinitionManager.h
+        ${COMMON_SOURCE_DIR}/mdl/EntityModel_Forward.h
+        ${COMMON_SOURCE_DIR}/mdl/EntityModel.h
+        ${COMMON_SOURCE_DIR}/mdl/EntityModelDataResource.h
+        ${COMMON_SOURCE_DIR}/mdl/EntityModelManager.h
         ${COMMON_SOURCE_DIR}/mdl/EntityNode.h
         ${COMMON_SOURCE_DIR}/mdl/EntityNodeBase.h
         ${COMMON_SOURCE_DIR}/mdl/EntityNodeIndex.h
@@ -663,10 +660,15 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/mdl/LongPropertyValueValidator.h
         ${COMMON_SOURCE_DIR}/mdl/MapFacade.h
         ${COMMON_SOURCE_DIR}/mdl/MapFormat.h
+        ${COMMON_SOURCE_DIR}/mdl/Material.h
+        ${COMMON_SOURCE_DIR}/mdl/MaterialCollection.h
+        ${COMMON_SOURCE_DIR}/mdl/MaterialManager.h
         ${COMMON_SOURCE_DIR}/mdl/MissingClassnameValidator.h
         ${COMMON_SOURCE_DIR}/mdl/MissingDefinitionValidator.h
         ${COMMON_SOURCE_DIR}/mdl/MissingModValidator.h
         ${COMMON_SOURCE_DIR}/mdl/MixedBrushContentsValidator.h
+        ${COMMON_SOURCE_DIR}/mdl/ModelDefinition.h
+        ${COMMON_SOURCE_DIR}/mdl/ModelSpecification.h
         ${COMMON_SOURCE_DIR}/mdl/ModelUtils.h
         ${COMMON_SOURCE_DIR}/mdl/Node.h
         ${COMMON_SOURCE_DIR}/mdl/NodeCollection.h
@@ -675,6 +677,7 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/mdl/NodeVisitor.h
         ${COMMON_SOURCE_DIR}/mdl/NonIntegerVerticesValidator.h
         ${COMMON_SOURCE_DIR}/mdl/Object.h
+        ${COMMON_SOURCE_DIR}/mdl/Palette.h
         ${COMMON_SOURCE_DIR}/mdl/ParallelUVCoordSystem.h
         ${COMMON_SOURCE_DIR}/mdl/ParaxialUVCoordSystem.h
         ${COMMON_SOURCE_DIR}/mdl/PatchNode.h
@@ -699,9 +702,12 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/mdl/Polyhedron.h
         ${COMMON_SOURCE_DIR}/mdl/Polyhedron3.h
         ${COMMON_SOURCE_DIR}/mdl/PortalFile.h
+        ${COMMON_SOURCE_DIR}/mdl/PropertyDefinition.h
         ${COMMON_SOURCE_DIR}/mdl/PropertyKeyWithDoubleQuotationMarksValidator.h
         ${COMMON_SOURCE_DIR}/mdl/PropertyValueWithDoubleQuotationMarksValidator.h
         ${COMMON_SOURCE_DIR}/mdl/PushSelection.h
+        ${COMMON_SOURCE_DIR}/mdl/Quake3Shader.h
+        ${COMMON_SOURCE_DIR}/mdl/Resource.h
         ${COMMON_SOURCE_DIR}/mdl/SoftMapBoundsValidator.h
         ${COMMON_SOURCE_DIR}/mdl/Tag.h
         ${COMMON_SOURCE_DIR}/mdl/TagAttribute.h
@@ -709,6 +715,9 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/mdl/TagMatcher.h
         ${COMMON_SOURCE_DIR}/mdl/TagType.h
         ${COMMON_SOURCE_DIR}/mdl/TagVisitor.h
+        ${COMMON_SOURCE_DIR}/mdl/Texture.h
+        ${COMMON_SOURCE_DIR}/mdl/TextureBuffer.h
+        ${COMMON_SOURCE_DIR}/mdl/TextureResource.h
         ${COMMON_SOURCE_DIR}/mdl/UVCoordSystem.h
         ${COMMON_SOURCE_DIR}/mdl/Validator.h
         ${COMMON_SOURCE_DIR}/mdl/ValidatorRegistry.h
@@ -803,7 +812,6 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/Thread.h
         ${COMMON_SOURCE_DIR}/TrenchBroomApp.h
         ${COMMON_SOURCE_DIR}/TrenchBroomStackWalker.h
-        ${COMMON_SOURCE_DIR}/Uuid.h
         ${COMMON_SOURCE_DIR}/ui/AboutDialog.h
         ${COMMON_SOURCE_DIR}/ui/ActionBuilder.h
         ${COMMON_SOURCE_DIR}/ui/ActionContext.h
@@ -913,6 +921,7 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/ui/KeyboardShortcutModel.h
         ${COMMON_SOURCE_DIR}/ui/KeySequenceEdit.h
         ${COMMON_SOURCE_DIR}/ui/Lasso.h
+        ${COMMON_SOURCE_DIR}/ui/LaunchGameEngine.h
         ${COMMON_SOURCE_DIR}/ui/LaunchGameEngineDialog.h
         ${COMMON_SOURCE_DIR}/ui/LayerEditor.h
         ${COMMON_SOURCE_DIR}/ui/LayerListBox.h
@@ -1004,6 +1013,9 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/ui/UpdateLinkedGroupsCommand.h
         ${COMMON_SOURCE_DIR}/ui/UpdateLinkedGroupsCommandBase.h
         ${COMMON_SOURCE_DIR}/ui/UpdateLinkedGroupsHelper.h
+        ${COMMON_SOURCE_DIR}/ui/UpdateConfig.h
+        ${COMMON_SOURCE_DIR}/ui/UpdatePreferencePane.h
+        ${COMMON_SOURCE_DIR}/ui/UpdateVersion.h
         ${COMMON_SOURCE_DIR}/ui/UVCameraTool.h
         ${COMMON_SOURCE_DIR}/ui/UVEditor.h
         ${COMMON_SOURCE_DIR}/ui/UVOffsetTool.h
@@ -1025,15 +1037,16 @@ set(COMMON_HEADER
         ${COMMON_SOURCE_DIR}/ui/ViewPreferencePane.h
         ${COMMON_SOURCE_DIR}/ui/ViewUtils.h
         ${COMMON_SOURCE_DIR}/ui/WelcomeWindow.h
+        ${COMMON_SOURCE_DIR}/Uuid.h
 )
 
 add_library(common OBJECT ${COMMON_SOURCE} ${COMMON_HEADER})
 set_target_properties(common PROPERTIES AUTOMOC TRUE)
 target_include_directories(common PUBLIC ${COMMON_SOURCE_DIR})
-target_link_libraries(common PUBLIC tinyxml2::tinyxml2 kdl vm GLEW::GLEW miniz::miniz freeimage::FreeImage freetype OpenGL::GL Qt5::Widgets Qt5::Svg fmt::fmt assimp::assimp)
+target_link_libraries(common PUBLIC tinyxml2::tinyxml2 kdl upd vm GLEW::GLEW miniz::miniz freeimage::FreeImage freetype OpenGL::GL Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets Qt6::Svg fmt::fmt assimp::assimp)
 
 # use precompiled headers on CMake 3.16 or later
-if (NOT TB_SUPPRESS_PCH AND ${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.16.0")
+if (TB_ENABLE_PCH AND ${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.16.0")
     message(STATUS "Using precompiled headers")
     target_precompile_headers(common PUBLIC
             <algorithm>

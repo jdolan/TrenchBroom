@@ -20,6 +20,7 @@
 #pragma once
 
 #include "Macros.h"
+#include "Result.h"
 #include "io/ConfigParserBase.h"
 #include "mdl/GameConfig.h"
 
@@ -38,13 +39,10 @@ namespace tb::io
 
 class GameConfigParser : public ConfigParserBase
 {
-private:
-  el::IntegerType m_version;
-
 public:
   explicit GameConfigParser(std::string_view str, const std::filesystem::path& path = {});
 
-  mdl::GameConfig parse();
+  Result<mdl::GameConfig> parse();
 
   deleteCopyAndMove(GameConfigParser);
 };

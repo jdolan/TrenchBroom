@@ -37,16 +37,18 @@
 #include "ui/CompilationVariables.h"
 #include "ui/MapDocument.h" // IWYU pragma: keep
 
+#include "kdl/cmd_utils.h"
 #include "kdl/functional.h"
 #include "kdl/overload.h"
+#include "kdl/path_utils.h"
+#include "kdl/range_to_vector.h"
 #include "kdl/result_fold.h"
 #include "kdl/string_utils.h"
-#include "kdl/vector_utils.h"
 
 #include <fmt/format.h>
 #include <fmt/std.h>
 
-#include <filesystem>
+#include <ranges>
 #include <string>
 
 namespace tb::ui
@@ -86,7 +88,7 @@ void CompilationTaskRunner::terminate()
   doTerminate();
 }
 
-Result<std::string> CompilationTaskRunner::interpolate(const std::string& spec)
+Result<std::string> CompilationTaskRunner::interpolate(const std::string& spec) const
 {
   try
   {
@@ -113,7 +115,7 @@ void CompilationExportMapTaskRunner::doExecute()
   emit start();
 
   interpolate(m_task.targetSpec).and_then([&](const auto& interpolated) {
-    const auto targetPath = std::filesystem::path{interpolated};
+    const auto targetPath = kdl::parse_path(interpolated);
     m_context << "#### Exporting map file '" << io::pathAsQString(targetPath) << "'\n";
 
     if (!m_context.test())
@@ -151,8 +153,8 @@ void CompilationCopyFilesTaskRunner::doExecute()
   interpolate(m_task.sourceSpec)
       .join(interpolate(m_task.targetSpec))
       .and_then([&](const auto& interpolatedSource, const auto& interpolatedTarget) {
-        const auto sourcePath = std::filesystem::path{interpolatedSource};
-        const auto targetPath = std::filesystem::path{interpolatedTarget};
+        const auto sourcePath = kdl::parse_path(interpolatedSource);
+        const auto targetPath = kdl::parse_path(interpolatedTarget);
 
         const auto sourceDirPath = sourcePath.parent_path();
         const auto sourcePathMatcher = kdl::lift_and(
@@ -161,9 +163,11 @@ void CompilationCopyFilesTaskRunner::doExecute()
 
         return io::Disk::find(sourceDirPath, io::TraversalMode::Flat, sourcePathMatcher)
                | kdl::and_then([&](const auto& pathsToCopy) {
-                   const auto pathStrsToCopy = kdl::vec_transform(
-                     pathsToCopy,
-                     [](const auto& path) { return "'" + path.string() + "'"; });
+                   const auto pathStrsToCopy =
+                     pathsToCopy | std::views::transform([](const auto& path) {
+                       return fmt::format("{}", path);
+                     })
+                     | kdl::to_vector;
 
                    m_context << "#### Copying to '" << io::pathAsQString(targetPath)
                              << "/': "
@@ -174,8 +178,8 @@ void CompilationCopyFilesTaskRunner::doExecute()
                    {
                      return io::Disk::createDirectory(targetPath)
                             | kdl::and_then([&](auto) {
-                                return kdl::vec_transform(
-                                         pathsToCopy,
+                                return pathsToCopy
+                                       | std::views::transform(
                                          [&](const auto& pathToCopy) {
                                            return io::Disk::copyFile(
                                              pathToCopy, targetPath);
@@ -210,8 +214,8 @@ void CompilationRenameFileTaskRunner::doExecute()
   interpolate(m_task.sourceSpec)
       .join(interpolate(m_task.targetSpec))
       .and_then([&](const auto& interpolatedSource, const auto& interpolatedTarget) {
-        const auto sourcePath = std::filesystem::path{interpolatedSource};
-        const auto targetPath = std::filesystem::path{interpolatedTarget};
+        const auto sourcePath = kdl::parse_path(interpolatedSource);
+        const auto targetPath = kdl::parse_path(interpolatedTarget);
 
         m_context << "#### Renaming '" << io::pathAsQString(sourcePath) << "' to '"
                   << io::pathAsQString(targetPath) << "'\n";
@@ -245,7 +249,7 @@ void CompilationDeleteFilesTaskRunner::doExecute()
   emit start();
 
   interpolate(m_task.targetSpec).and_then([&](const auto& interpolated) {
-    const auto targetPath = std::filesystem::path{interpolated};
+    const auto targetPath = kdl::parse_path(interpolated);
 
     const auto targetDirPath = targetPath.parent_path();
     const auto targetPathMatcher = kdl::lift_and(
@@ -254,16 +258,19 @@ void CompilationDeleteFilesTaskRunner::doExecute()
 
     return io::Disk::find(targetDirPath, io::TraversalMode::Recursive, targetPathMatcher)
            | kdl::transform([&](const auto& pathsToDelete) {
-               const auto pathStrsToDelete = kdl::vec_transform(
-                 pathsToDelete,
-                 [](const auto& path) { return "'" + path.string() + "'"; });
+               const auto pathStrsToDelete =
+                 pathsToDelete | std::views::transform([](const auto& path) {
+                   return fmt::format("{}", path);
+                 })
+                 | kdl::to_vector;
+
                m_context << "#### Deleting: "
                          << QString::fromStdString(kdl::str_join(pathStrsToDelete, ", "))
                          << "\n";
 
                if (!m_context.test())
                {
-                 return kdl::vec_transform(pathsToDelete, io::Disk::deleteFile)
+                 return pathsToDelete | std::views::transform(io::Disk::deleteFile)
                         | kdl::fold;
                }
                return Result<std::vector<bool>>{std::vector<bool>{}};
@@ -315,44 +322,59 @@ void CompilationRunToolTaskRunner::startProcess()
   assert(m_process == nullptr);
 
   emit start();
-  workDir(m_context).join(cmd()).and_then(
-    [&](const auto& workDir, const auto& cmd) -> Result<void> {
-      m_context << "#### Executing '" << QString::fromStdString(cmd) << "'\n";
+  workDir(m_context)
+      .join(program())
+      .join(parameters())
+      .and_then(
+        [&](const auto& workDir, const auto& program, const auto& parameters)
+          -> Result<void> {
+          const auto programStr = io::pathAsQString(kdl::parse_path(program));
+          const auto parameterStrs =
+            parameters | std::views::transform([](const auto& p) {
+              return QString::fromStdString(p);
+            });
+          const auto parameterStrList =
+            QStringList{parameterStrs.begin(), parameterStrs.end()};
 
-      if (!m_context.test())
-      {
-        m_process = new QProcess{this};
-        connect(
-          m_process,
-          &QProcess::errorOccurred,
-          this,
-          &CompilationRunToolTaskRunner::processErrorOccurred);
-        connect(
-          m_process,
-          QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
-          this,
-          &CompilationRunToolTaskRunner::processFinished);
-        connect(
-          m_process,
-          &QProcess::readyReadStandardError,
-          this,
-          &CompilationRunToolTaskRunner::processReadyReadStandardError);
-        connect(
-          m_process,
-          &QProcess::readyReadStandardOutput,
-          this,
-          &CompilationRunToolTaskRunner::processReadyReadStandardOutput);
+          m_context << "#### Executing '" << programStr << " "
+                    << parameterStrList.join(" ") << "'\n";
 
-        m_process->setProcessEnvironment(QProcessEnvironment::systemEnvironment());
-        m_process->setWorkingDirectory(QString::fromStdString(workDir));
-        m_process->start(QString::fromStdString(cmd));
-        if (!m_process->waitForStarted())
-        {
-          return Error{"Failed to start process"};
-        }
-      }
-      return Result<void>{};
-    })
+          if (!m_context.test())
+          {
+            m_process = new QProcess{this};
+            connect(
+              m_process,
+              &QProcess::errorOccurred,
+              this,
+              &CompilationRunToolTaskRunner::processErrorOccurred);
+            connect(
+              m_process,
+              QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+              this,
+              &CompilationRunToolTaskRunner::processFinished);
+            connect(
+              m_process,
+              &QProcess::readyReadStandardError,
+              this,
+              &CompilationRunToolTaskRunner::processReadyReadStandardError);
+            connect(
+              m_process,
+              &QProcess::readyReadStandardOutput,
+              this,
+              &CompilationRunToolTaskRunner::processReadyReadStandardOutput);
+
+            m_process->setProcessEnvironment(QProcessEnvironment::systemEnvironment());
+            m_process->setWorkingDirectory(QString::fromStdString(workDir));
+            m_process->setArguments(parameterStrList);
+            m_process->setProgram(programStr);
+            m_process->start();
+            if (!m_process->waitForStarted())
+            {
+              return Error{"Failed to start process"};
+            }
+          }
+          return Result<void>{};
+        })
     | kdl::transform([&]() {
         if (m_context.test())
         {
@@ -365,16 +387,16 @@ void CompilationRunToolTaskRunner::startProcess()
       });
 }
 
-Result<std::string> CompilationRunToolTaskRunner::cmd()
+Result<std::string> CompilationRunToolTaskRunner::program() const
 {
-  return interpolate(m_task.toolSpec)
-    .join(interpolate(m_task.parameterSpec))
-    .transform([](const auto& interpolatedToolPath, const auto& parameters) {
-      const auto toolPath = std::filesystem::path{interpolatedToolPath};
-      return toolPath.empty()     ? ""
-             : parameters.empty() ? fmt::format(R"("{}")", toolPath)
-                                  : fmt::format(R"("{}" {})", toolPath, parameters);
-    });
+  return interpolate(m_task.toolSpec);
+}
+
+Result<std::vector<std::string>> CompilationRunToolTaskRunner::parameters() const
+{
+  return interpolate(m_task.parameterSpec).transform([](const auto& parameters) {
+    return kdl::cmd_parse_args(parameters);
+  });
 }
 
 void CompilationRunToolTaskRunner::processErrorOccurred(

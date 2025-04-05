@@ -37,8 +37,10 @@
 
 #include "kdl/path_utils.h"
 #include "kdl/result.h"
-#include "kdl/string_compare.h"
 #include "kdl/vector_utils.h"
+
+#include <fmt/format.h>
+#include <fmt/std.h>
 
 #include <iostream>
 #include <memory>
@@ -263,9 +265,10 @@ Result<std::vector<std::string>> GameFactory::loadGameConfigs(
              kdl::vec_transform(configFiles, [&](const auto& configFilePath) {
                return loadGameConfig(gamePathConfig, configFilePath)
                       | kdl::transform_error([&](auto e) {
-                          errors.push_back(
-                            "Failed to load game configuration file '"
-                            + configFilePath.string() + "': " + e.msg);
+                          errors.push_back(fmt::format(
+                            "Failed to load game configuration file {}: {}",
+                            configFilePath,
+                            e.msg));
                         });
              });
              return errors;
@@ -276,101 +279,79 @@ Result<void> GameFactory::loadGameConfig(
   const GamePathConfig& gamePathConfig, const std::filesystem::path& path)
 {
   return m_configFs->openFile(path).join(m_configFs->makeAbsolute(path))
-         | kdl::and_then([&](auto configFile, auto absolutePath) -> Result<void> {
+         | kdl::and_then([&](auto configFile, auto absolutePath) {
              auto reader = configFile->reader().buffer();
              auto parser = io::GameConfigParser{reader.stringView(), absolutePath};
-             try
-             {
-               auto config = parser.parse();
+             return parser.parse();
+           })
+         | kdl::transform([&](auto config) {
+             migrateConfigFiles(gamePathConfig.userGameDir, config)
+               | kdl::transform_error([&](auto e) {
+                   std::cerr << "Could not migrate user config files: '" << e.msg << "\n";
+                 });
 
-               migrateConfigFiles(gamePathConfig.userGameDir, config)
-                 | kdl::transform_error([&](auto e) {
-                     std::cerr << "Could not migrate user config files: '" << e.msg
-                               << "\n";
-                   });
+             loadCompilationConfig(config);
+             loadGameEngineConfig(config);
 
-               loadCompilationConfig(config);
-               loadGameEngineConfig(config);
+             const auto configName = config.name;
+             m_configs.emplace(configName, std::move(config));
+             kdl::wrap_set(m_names).insert(configName);
 
-               const auto configName = config.name;
-               m_configs.emplace(configName, std::move(config));
-               kdl::wrap_set(m_names).insert(configName);
+             const auto gamePathPrefPath =
+               std::filesystem::path{"Games"} / configName / "Path";
+             m_gamePaths.emplace(
+               configName, Preference<std::filesystem::path>{gamePathPrefPath, {}});
 
-               const auto gamePathPrefPath =
-                 std::filesystem::path{"Games"} / configName / "Path";
-               m_gamePaths.emplace(
-                 configName, Preference<std::filesystem::path>{gamePathPrefPath, {}});
-
-               const auto defaultEnginePrefPath =
-                 std::filesystem::path{"Games"} / configName / "Default Engine";
-               m_defaultEngines.emplace(
-                 configName,
-                 Preference<std::filesystem::path>{defaultEnginePrefPath, {}});
-
-               return Result<void>{};
-             }
-             catch (const ParserException& e)
-             {
-               return Error{e.what()};
-             }
+             const auto defaultEnginePrefPath =
+               std::filesystem::path{"Games"} / configName / "Default Engine";
+             m_defaultEngines.emplace(
+               configName, Preference<std::filesystem::path>{defaultEnginePrefPath, {}});
            });
 }
 
 void GameFactory::loadCompilationConfig(GameConfig& gameConfig)
 {
   const auto path = gameConfig.configFileFolder() / "CompilationProfiles.cfg";
-  try
+  if (m_configFs->pathInfo(path) == io::PathInfo::File)
   {
-    if (m_configFs->pathInfo(path) == io::PathInfo::File)
-    {
-      m_configFs->openFile(path).join(m_configFs->makeAbsolute(path))
-        | kdl::transform([&](auto profilesFile, auto absolutePath) {
-            auto reader = profilesFile->reader().buffer();
-            auto parser = io::CompilationConfigParser{reader.stringView(), absolutePath};
-            gameConfig.compilationConfig = parser.parse();
-            gameConfig.compilationConfigParseFailed = false;
-          })
-        | kdl::transform_error([&](auto e) {
-            std::cerr << "Could not load compilation configuration '" << path
-                      << "': " << e.msg << "\n";
-            gameConfig.compilationConfigParseFailed = true;
-          });
-    }
-  }
-  catch (const ParserException& e)
-  {
-    std::cerr << "Could not load compilation configuration '" << path << "': " << e.what()
-              << "\n";
-    gameConfig.compilationConfigParseFailed = true;
+    m_configFs->openFile(path).join(m_configFs->makeAbsolute(path))
+      | kdl::and_then([&](auto profilesFile, auto absolutePath) {
+          auto reader = profilesFile->reader().buffer();
+          auto parser = io::CompilationConfigParser{reader.stringView(), absolutePath};
+          return parser.parse();
+        })
+      | kdl::transform([&](auto compilationConfig) {
+          gameConfig.compilationConfig = std::move(compilationConfig);
+          gameConfig.compilationConfigParseFailed = false;
+        })
+      | kdl::transform_error([&](auto e) {
+          std::cerr << "Could not load compilation configuration '" << path
+                    << "': " << e.msg << "\n";
+          gameConfig.compilationConfigParseFailed = true;
+        });
   }
 }
 
 void GameFactory::loadGameEngineConfig(GameConfig& gameConfig)
 {
   const auto path = gameConfig.configFileFolder() / "GameEngineProfiles.cfg";
-  try
+  if (m_configFs->pathInfo(path) == io::PathInfo::File)
   {
-    if (m_configFs->pathInfo(path) == io::PathInfo::File)
-    {
-      m_configFs->openFile(path).join(m_configFs->makeAbsolute(path))
-        | kdl::transform([&](auto profilesFile, auto absolutePath) {
-            auto reader = profilesFile->reader().buffer();
-            auto parser = io::GameEngineConfigParser{reader.stringView(), absolutePath};
-            gameConfig.gameEngineConfig = parser.parse();
-            gameConfig.gameEngineConfigParseFailed = false;
-          })
-        | kdl::transform_error([&](auto e) {
-            std::cerr << "Could not load game engine configuration '" << path
-                      << "': " << e.msg << "\n";
-            gameConfig.gameEngineConfigParseFailed = true;
-          });
-    }
-  }
-  catch (const ParserException& e)
-  {
-    std::cerr << "Could not load game engine configuration '" << path << "': " << e.what()
-              << "\n";
-    gameConfig.gameEngineConfigParseFailed = true;
+    m_configFs->openFile(path).join(m_configFs->makeAbsolute(path))
+      | kdl::and_then([&](auto profilesFile, auto absolutePath) {
+          auto reader = profilesFile->reader().buffer();
+          auto parser = io::GameEngineConfigParser{reader.stringView(), absolutePath};
+          return parser.parse();
+        })
+      | kdl::transform([&](auto gameEngineConfig) {
+          gameConfig.gameEngineConfig = std::move(gameEngineConfig);
+          gameConfig.gameEngineConfigParseFailed = false;
+        })
+      | kdl::transform_error([&](auto e) {
+          std::cerr << "Could not load game engine configuration '" << path
+                    << "': " << e.msg << "\n";
+          gameConfig.gameEngineConfigParseFailed = true;
+        });
   }
 }
 

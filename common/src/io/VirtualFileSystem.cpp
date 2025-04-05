@@ -28,6 +28,9 @@
 #include "kdl/result_fold.h"
 #include "kdl/vector_utils.h"
 
+#include <fmt/format.h>
+#include <fmt/std.h>
+
 #include <optional>
 #include <unordered_map>
 
@@ -92,7 +95,7 @@ Result<std::filesystem::path> VirtualFileSystem::makeAbsolute(
     }
   }
 
-  return Error{"Failed to make absolute path of '" + path.string() + "'"};
+  return Error{fmt::format("Failed to make absolute path of {}", path)};
 }
 
 PathInfo VirtualFileSystem::pathInfo(const std::filesystem::path& path) const
@@ -122,6 +125,25 @@ PathInfo VirtualFileSystem::pathInfo(const std::filesystem::path& path) const
            : PathInfo::Unknown;
 }
 
+const FileSystemMetadata* VirtualFileSystem::metadata(
+  const std::filesystem::path& path, const std::string& key) const
+{
+  for (auto it = m_mountPoints.rbegin(); it != m_mountPoints.rend(); ++it)
+  {
+    const auto& mountPoint = *it;
+    if (matches(mountPoint, path))
+    {
+      const auto pathSuffix = suffix(mountPoint, path);
+      if (const auto pathInfo = mountPoint.mountedFileSystem->pathInfo(pathSuffix);
+          pathInfo != PathInfo::Unknown)
+      {
+        return mountPoint.mountedFileSystem->metadata(pathSuffix, key);
+      }
+    }
+  }
+
+  return nullptr;
+}
 
 VirtualMountPointId VirtualFileSystem::mount(
   const std::filesystem::path& path, std::unique_ptr<FileSystem> fs)
@@ -291,7 +313,7 @@ Result<std::shared_ptr<File>> VirtualFileSystem::doOpenFile(
     }
   }
 
-  return Error{"'" + path.string() + "' not found"};
+  return Error{fmt::format("{} not found", path)};
 }
 
 WritableVirtualFileSystem::WritableVirtualFileSystem(
@@ -311,6 +333,12 @@ Result<std::filesystem::path> WritableVirtualFileSystem::makeAbsolute(
 PathInfo WritableVirtualFileSystem::pathInfo(const std::filesystem::path& path) const
 {
   return m_virtualFs.pathInfo(path);
+}
+
+const FileSystemMetadata* WritableVirtualFileSystem::metadata(
+  const std::filesystem::path& path, const std::string& key) const
+{
+  return m_virtualFs.metadata(path, key);
 }
 
 Result<std::vector<std::filesystem::path>> WritableVirtualFileSystem::doFind(

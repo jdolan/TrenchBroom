@@ -29,7 +29,6 @@
 #include "io/PathInfo.h"
 #include "io/PathQt.h"
 
-#include <optional>
 #include <vector>
 
 namespace tb::io::SystemPaths
@@ -43,6 +42,11 @@ std::filesystem::path appImageDirectory()
 }
 
 } // namespace
+
+std::filesystem::path appFile()
+{
+  return io::pathFromQString(QCoreApplication::applicationFilePath());
+}
 
 std::filesystem::path appDirectory()
 {
@@ -62,6 +66,12 @@ std::filesystem::path userDataDirectory()
   return io::pathFromQString(
     QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
 #endif
+}
+
+std::filesystem::path tempDirectory()
+{
+  return io::pathFromQString(
+    QStandardPaths::writableLocation(QStandardPaths::TempLocation));
 }
 
 std::filesystem::path logFilePath()
@@ -95,7 +105,7 @@ std::filesystem::path findResourceFile(const std::filesystem::path& file)
 
   return io::pathFromQString(QStandardPaths::locate(
     QStandardPaths::AppDataLocation,
-    io::pathAsQString(file),
+    io::pathAsQPath(file),
     QStandardPaths::LocateOption::LocateFile));
 }
 
@@ -113,7 +123,7 @@ std::vector<std::filesystem::path> findResourceDirectories(
 
   const auto dirs = QStandardPaths::locateAll(
     QStandardPaths::AppDataLocation,
-    io::pathAsQString(directory),
+    io::pathAsQPath(directory),
     QStandardPaths::LocateOption::LocateDirectory);
 
   for (const auto& dir : dirs)

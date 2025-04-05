@@ -91,6 +91,7 @@
 #include "ui/SwitchableMapViewContainer.h"
 #include "ui/VertexTool.h"
 #include "ui/ViewUtils.h"
+#include "upd/Updater.h"
 
 #include "kdl/overload.h"
 #include "kdl/range_to_vector.h"
@@ -101,6 +102,7 @@
 #include "vm/vec_io.h"
 
 #include <fmt/format.h>
+#include <fmt/std.h>
 
 #include <cassert>
 #include <chrono>
@@ -237,7 +239,7 @@ void MapFrame::updateTitle()
   setWindowModified(m_document->modified());
   setWindowTitle(
     QString::fromStdString(m_document->filename()) + QString("[*] - TrenchBroom"));
-  setWindowFilePath(io::pathAsQString(m_document->path()));
+  setWindowFilePath(io::pathAsQPath(m_document->path()));
 }
 
 void MapFrame::updateTitleDelayed()
@@ -446,8 +448,11 @@ void MapFrame::updateToolBarWidgets()
 
 void MapFrame::createStatusBar()
 {
+  auto& app = TrenchBroomApp::instance();
+
   m_statusBarLabel = new QLabel{};
-  statusBar()->addWidget(m_statusBarLabel);
+  statusBar()->addWidget(m_statusBarLabel, 1);
+  statusBar()->addWidget(app.updater().createUpdateIndicator());
 }
 
 namespace
@@ -951,7 +956,8 @@ bool MapFrame::saveDocument()
     QMessageBox::critical(
       this,
       "",
-      QString::fromStdString("Unknown error while saving " + m_document->path().string()),
+      QString::fromStdString(
+        fmt::format("Unknown error while saving {}", m_document->path())),
       QMessageBox::Ok);
     return false;
   }
@@ -966,7 +972,7 @@ bool MapFrame::saveDocumentAs()
     const auto fileName = originalPath.filename();
 
     const auto newFileName = QFileDialog::getSaveFileName(
-      this, tr("Save map file"), io::pathAsQString(originalPath), "Map files (*.map)");
+      this, tr("Save map file"), io::pathAsQPath(originalPath), "Map files (*.map)");
     if (newFileName.isEmpty())
     {
       return false;
@@ -1026,7 +1032,7 @@ bool MapFrame::exportDocumentAsMap()
   const auto& originalPath = m_document->path();
 
   const auto newFileName = QFileDialog::getSaveFileName(
-    this, tr("Export Map file"), io::pathAsQString(originalPath), "Map files (*.map)");
+    this, tr("Export Map file"), io::pathAsQPath(originalPath), "Map files (*.map)");
   if (newFileName.isEmpty())
   {
     return false;
@@ -1118,7 +1124,7 @@ bool MapFrame::confirmRevertDocument()
 void MapFrame::loadPointFile()
 {
   const auto defaultDir = !m_document->path().empty()
-                            ? io::pathAsQString(m_document->path().parent_path())
+                            ? io::pathAsQPath(m_document->path().parent_path())
                             : QString{};
 
   const auto fileName = QFileDialog::getOpenFileName(
@@ -1162,7 +1168,7 @@ bool MapFrame::canReloadPointFile() const
 void MapFrame::loadPortalFile()
 {
   const auto defaultDir = !m_document->path().empty()
-                            ? io::pathAsQString(m_document->path().parent_path())
+                            ? io::pathAsQPath(m_document->path().parent_path())
                             : QString{};
 
   const auto fileName = QFileDialog::getOpenFileName(
@@ -1492,7 +1498,7 @@ void MapFrame::selectByLineNumber()
     if (!string.isEmpty())
     {
       auto positions = std::vector<size_t>{};
-      for (const auto& token : string.split(QRegExp{"[, ]"}))
+      for (const auto& token : string.split(QRegularExpression{"[, ]"}))
       {
         bool ok;
         const auto position = token.toLong(&ok);
@@ -2483,9 +2489,7 @@ DebugPaletteWindow::DebugPaletteWindow(QWidget* parent)
     {QPalette::AlternateBase, "AlternateBase"},
     {QPalette::ToolTipBase, "ToolTipBase"},
     {QPalette::ToolTipText, "ToolTipText"},
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 12, 0))
     {QPalette::PlaceholderText, "PlaceholderText"},
-#endif
     {QPalette::Text, "Text"},
     {QPalette::Button, "Button"},
     {QPalette::ButtonText, "ButtonText"},

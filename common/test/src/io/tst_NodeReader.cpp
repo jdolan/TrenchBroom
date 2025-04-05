@@ -44,7 +44,7 @@ TEST_CASE("NodeReader")
 
     CHECK(
       io::NodeReader::read(data, MapFormat::Valve, worldBounds, {}, status, taskManager)
-        .empty());
+        .is_error());
   }
 
   SECTION("convertValveToStandardMapFormat")
@@ -68,7 +68,9 @@ TEST_CASE("NodeReader")
 
     auto nodes = io::NodeReader::read(
       data, MapFormat::Standard, worldBounds, {}, status, taskManager);
-    auto* brushNode = dynamic_cast<BrushNode*>(nodes.at(0)->children().at(0));
+    REQUIRE(nodes.is_success());
+
+    auto* brushNode = dynamic_cast<BrushNode*>(nodes.value().at(0)->children().at(0));
     REQUIRE(brushNode != nullptr);
 
     auto brush = brushNode->brush();
@@ -100,8 +102,9 @@ TEST_CASE("NodeReader")
 
     auto nodes = io::NodeReader::read(
       data, MapFormat::Standard, worldBounds, {}, status, taskManager);
+    REQUIRE(nodes.is_success());
 
-    auto* groupNode = dynamic_cast<GroupNode*>(nodes.at(0));
+    auto* groupNode = dynamic_cast<GroupNode*>(nodes.value().at(0));
     REQUIRE(groupNode != nullptr);
 
     auto* brushNode = dynamic_cast<BrushNode*>(groupNode->children().at(0));
@@ -131,11 +134,13 @@ TEST_CASE("NodeReader")
 ( 112 16 16 ) ( 113 16 16 ) ( 112 16 17 ) __TB_empty [ -1 1.8369701E-16 0 0 ] [ 0 0 -1 0 ] 0 1 1 
 ( 128 0 32 ) ( 128 -1 32 ) ( 128 0 33 ) __TB_empty [ 1.8369701e-16 1 0 0 ] [ 0 0 -1 0 ] 0 1 1 
 }
+}
 )";
 
     auto nodes =
       io::NodeReader::read(data, MapFormat::Valve, worldBounds, {}, status, taskManager);
-    CHECK(nodes.size() == 1);
+    REQUIRE(nodes.is_success());
+    CHECK(nodes.value().size() == 1);
   }
 }
 

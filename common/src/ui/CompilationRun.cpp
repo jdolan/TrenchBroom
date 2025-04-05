@@ -20,8 +20,7 @@
 #include "CompilationRun.h"
 
 #include "Ensure.h"
-#include "el/EvaluationContext.h"
-#include "el/Interpolator.h"
+#include "el/Interpolate.h"
 #include "mdl/CompilationProfile.h"
 #include "ui/CompilationContext.h"
 #include "ui/CompilationRunner.h"
@@ -48,20 +47,20 @@ bool CompilationRun::running() const
   return doIsRunning();
 }
 
-void CompilationRun::run(
+Result<void> CompilationRun::run(
   const mdl::CompilationProfile& profile,
   std::shared_ptr<MapDocument> document,
   QTextEdit* currentOutput)
 {
-  run(profile, std::move(document), currentOutput, false);
+  return run(profile, std::move(document), currentOutput, false);
 }
 
-void CompilationRun::test(
+Result<void> CompilationRun::test(
   const mdl::CompilationProfile& profile,
   std::shared_ptr<MapDocument> document,
   QTextEdit* currentOutput)
 {
-  run(profile, std::move(document), currentOutput, true);
+  return run(profile, std::move(document), currentOutput, true);
 }
 
 void CompilationRun::terminate()
@@ -77,7 +76,7 @@ bool CompilationRun::doIsRunning() const
   return m_currentRun != nullptr && m_currentRun->running();
 }
 
-void CompilationRun::run(
+Result<void> CompilationRun::run(
   const mdl::CompilationProfile& profile,
   std::shared_ptr<MapDocument> document,
   QTextEdit* currentOutput,
@@ -90,36 +89,30 @@ void CompilationRun::run(
   assert(!doIsRunning());
   cleanup();
 
-  auto variables = CompilationVariables{document, buildWorkDir(profile, document)};
-
-  auto compilationContext =
-    CompilationContext{document, variables, TextOutputAdapter{currentOutput}, test};
-  m_currentRun = new CompilationRunner{std::move(compilationContext), profile, this};
-  connect(
-    m_currentRun,
-    &CompilationRunner::compilationStarted,
-    this,
-    &CompilationRun::compilationStarted);
-  connect(m_currentRun, &CompilationRunner::compilationEnded, this, [&]() {
-    cleanup();
-    emit compilationEnded();
-  });
-  m_currentRun->execute();
+  return buildWorkDir(profile, document) | kdl::transform([&](const auto& workDir) {
+           auto variables = CompilationVariables{document, workDir};
+           auto compilationContext = CompilationContext{
+             document, variables, TextOutputAdapter{currentOutput}, test};
+           m_currentRun =
+             new CompilationRunner{std::move(compilationContext), profile, this};
+           connect(
+             m_currentRun,
+             &CompilationRunner::compilationStarted,
+             this,
+             &CompilationRun::compilationStarted);
+           connect(m_currentRun, &CompilationRunner::compilationEnded, this, [&]() {
+             cleanup();
+             emit compilationEnded();
+           });
+           m_currentRun->execute();
+         });
 }
 
-std::string CompilationRun::buildWorkDir(
+Result<std::string> CompilationRun::buildWorkDir(
   const mdl::CompilationProfile& profile, std::shared_ptr<MapDocument> document)
 {
-  try
-  {
-    return el::interpolate(
-      profile.workDirSpec,
-      el::EvaluationContext{CompilationWorkDirVariables{std::move(document)}});
-  }
-  catch (const Exception&)
-  {
-    return "";
-  }
+  return el::interpolate(
+    CompilationWorkDirVariables{std::move(document)}, profile.workDirSpec);
 }
 
 void CompilationRun::cleanup()

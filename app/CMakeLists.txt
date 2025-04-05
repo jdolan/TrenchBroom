@@ -78,6 +78,10 @@ if(APPLE)
     set_source_files_properties(${MACOSX_STYLESHEET_FILES} PROPERTIES MACOSX_PACKAGE_LOCATION Resources/stylesheets)
     set(APP_SOURCE ${APP_SOURCE} ${MACOSX_STYLESHEET_FILES})
 
+    # Configure update scripts
+    set_source_files_properties(${LIB_UPDATE_SCRIPT} PROPERTIES MACOSX_PACKAGE_LOCATION Resources/update)
+    set(APP_SOURCE ${APP_SOURCE} ${LIB_UPDATE_SCRIPT})
+
     # Configure manual files
     set_source_files_properties(${INDEX_OUTPUT_PATH} PROPERTIES MACOSX_PACKAGE_LOCATION Resources/manual)
     set_source_files_properties(${DOC_MANUAL_TARGET_FILES_ABSOLUTE} PROPERTIES MACOSX_PACKAGE_LOCATION Resources/manual)
@@ -105,154 +109,174 @@ endif()
 string(REGEX REPLACE "^v(.*)" "\\1" CPACK_PACKAGE_VERSION "${GIT_DESCRIBE}")
 get_build_platform(APP_PLATFORM_NAME)
 
-macro(configure_app_target APP_TARGET_NAME SHOULD_BUILD_MANUAL)
-    target_link_libraries(${APP_TARGET_NAME} common) # common already comes with all its dependencies, no need to repeat them here
-    # Xcode "new build system" does't allow custom commands to be depended on by two unrelated targets
-    # In this case, ${INDEX_OUTPUT_PATH} is depended on by TrenchBroom and GenerateManual
-    # so we must make TrenchBroom depend on GenerateManual (see #3608)
-    if (${SHOULD_BUILD_MANUAL})
-        add_dependencies(${APP_TARGET_NAME} GenerateManual)
-    endif()
-    set_compiler_config(${APP_TARGET_NAME})
-
-    set_target_properties(${APP_TARGET_NAME} PROPERTIES AUTORCC TRUE)
-
-    if(APPLE)
-        # Configure variables that are substituted into the plist
-        # Set CFBundleName, which controls the application menu label
-        set_target_properties(${APP_TARGET_NAME} PROPERTIES MACOSX_BUNDLE_BUNDLE_NAME "${APP_TARGET_NAME}")
-        # Set CFBundleShortVersionString to "2.0.0". This is displayed in the Finder and Spotlight.
-        set_target_properties(${APP_TARGET_NAME} PROPERTIES MACOSX_BUNDLE_SHORT_VERSION_STRING "${CPACK_PACKAGE_VERSION}")
-        # Set CFBundleVersion to the git describe output. Apple docs say it should be "three non-negative, period-separated integers with the first integer being greater than zero"
-        set_target_properties(${APP_TARGET_NAME} PROPERTIES MACOSX_BUNDLE_BUNDLE_VERSION "${GIT_DESCRIBE}")
-
-        # Set NSHumanReadableCopyright.
-        string(TIMESTAMP TB_MACOSX_BUNDLE_COPYRIGHT "Copyright © %Y Kristian Duske. All rights reserved.")
-        set_target_properties(${APP_TARGET_NAME} PROPERTIES MACOSX_BUNDLE_COPYRIGHT "${TB_MACOSX_BUNDLE_COPYRIGHT}")
-
-        # Set the path to the plist template
-        set_target_properties(${APP_TARGET_NAME} PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${APP_RESOURCE_DIR}/mac/TrenchBroom-Info.plist")
-
-        # If requested, run macdeployqt which copies the Qt frameworks into the TrenchBroom.app bundle
-        # and modifies the TrenchBroom executable to refer to these private copies of the framework instead
-        # of the ones in /usr/local. This is slow so only do it if requested.
-        if(TB_RUN_MACDEPLOYQT)
-            message(STATUS "macdeployqt requested")
-
-            # Get macdeployqt path (hack)
-            get_target_property(TB_QMAKE_PATH Qt5::qmake IMPORTED_LOCATION)
-            string(REPLACE "qmake" "macdeployqt" TB_MACDEPLOYQT_PATH "${TB_QMAKE_PATH}")
-
-            add_custom_command(TARGET ${APP_TARGET_NAME} POST_BUILD
-                    COMMAND "${TB_MACDEPLOYQT_PATH}" "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>/../..")
-        endif()
-    endif()
-
-    # Copy some Windows-specific resources
-    if(WIN32)
-        # Copy icons to target dir
-        add_custom_command(TARGET ${APP_TARGET_NAME} PRE_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy "${APP_RESOURCE_DIR}/win32/icons/AppIcon.ico"    "${CMAKE_CURRENT_BINARY_DIR}"
-                COMMAND ${CMAKE_COMMAND} -E copy "${APP_RESOURCE_DIR}/win32/icons/DocIcon.ico"    "${CMAKE_CURRENT_BINARY_DIR}"
-                COMMAND ${CMAKE_COMMAND} -E copy "${APP_RESOURCE_DIR}/win32/icons/WindowIcon.ico" "${CMAKE_CURRENT_BINARY_DIR}")
-
-        # Copy DLLs to app directory
-        add_custom_command(TARGET ${APP_TARGET_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:assimp::assimp>" "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:freeimage::FreeImage>" "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:freetype>" "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:tinyxml2::tinyxml2>" "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:miniz::miniz>" "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:fmt::fmt>" "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:GLEW::GLEW>" "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:Qt5::Widgets>" "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:Qt5::Gui>" "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:Qt5::Core>" "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:Qt5::Svg>" "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>"
-                COMMAND ${CMAKE_COMMAND} -E make_directory    "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>/platforms"
-                COMMAND ${CMAKE_COMMAND} -E make_directory    "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>/styles"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:Qt5::QWindowsIntegrationPlugin>" "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>/platforms"
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:Qt5::QWindowsVistaStylePlugin>" "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>/styles")
-    endif()
-
-    # Generate a small stripped PDB for release builds so we get stack traces with symbols
-    if(COMPILER_IS_MSVC)
-        set_target_properties(${APP_TARGET_NAME} PROPERTIES LINK_FLAGS_RELEASE "/DEBUG /PDBSTRIPPED:Release/${APP_TARGET_NAME}-stripped.pdb /PDBALTPATH:${APP_TARGET_NAME}-stripped.pdb")
-    endif()
-
-    if(${CMAKE_SYSTEM_NAME} MATCHES "Linux|FreeBSD")
-        # Make executable name conventional lowercase on linux
-        string(TOLOWER ${APP_TARGET_NAME} APP_TARGET_NAME_LOWER)
-        set_target_properties(${APP_TARGET_NAME} PROPERTIES OUTPUT_NAME ${APP_TARGET_NAME_LOWER})
-    endif()
-
-    # Set up the resources and DLLs for the executable
-    set(APP_RESOURCE_DEST_DIR "$<TARGET_FILE_DIR:${APP_TARGET_NAME}>")
-
-    if(WIN32 OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux|FreeBSD")
-        # Copy button images to resources directory
-        add_custom_command(TARGET ${APP_TARGET_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_directory "${APP_RESOURCE_DIR}/graphics/images" "${APP_RESOURCE_DEST_DIR}/images")
-
-        # Copy fonts to resources directory
-        add_custom_command(TARGET ${APP_TARGET_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_directory "${APP_RESOURCE_DIR}/fonts" "${APP_RESOURCE_DEST_DIR}/fonts")
-
-        # Copy default resources to resources directory
-        add_custom_command(TARGET ${APP_TARGET_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_directory "${APP_RESOURCE_DIR}/defaults/" "${APP_RESOURCE_DEST_DIR}/defaults")
-
-        # Copy game files to resources directory
-        add_custom_command(TARGET ${APP_TARGET_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_directory "${APP_RESOURCE_DIR}/games/" "${APP_RESOURCE_DEST_DIR}/games")
-
-        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            # Copy untested game files to resources directory
-            add_custom_command(TARGET ${APP_TARGET_NAME} POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E copy_directory "${APP_RESOURCE_DIR}/games-testing/" "${APP_RESOURCE_DEST_DIR}/games")
-        endif()
-
-        # Copy shader files to resources directory
-        add_custom_command(TARGET ${APP_TARGET_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_directory "${APP_RESOURCE_DIR}/shader" "${APP_RESOURCE_DEST_DIR}/shader")
-
-        # Copy Qt stylesheet files to resources directory
-        add_custom_command(TARGET ${APP_TARGET_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_RESOURCE_DEST_DIR}/stylesheets/"
-                COMMAND ${CMAKE_COMMAND} -E copy_directory "${APP_RESOURCE_DIR}/stylesheets" "${APP_RESOURCE_DEST_DIR}/stylesheets")
-
-        if (${SHOULD_BUILD_MANUAL})
-            # Copy manual files to resource directory
-            add_custom_command(TARGET ${APP_TARGET_NAME} POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_RESOURCE_DEST_DIR}/manual/"
-                    COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_RESOURCE_DEST_DIR}/manual/images"
-                    COMMAND ${CMAKE_COMMAND} -E copy "${INDEX_OUTPUT_PATH}" "${APP_RESOURCE_DEST_DIR}/manual/"
-                    COMMAND ${CMAKE_COMMAND} -E copy "${DOC_MANUAL_SHORTCUTS_JS_TARGET_ABSOLUTE}" "${APP_RESOURCE_DEST_DIR}/manual/")
-
-            foreach(MANUAL_FILE ${DOC_MANUAL_TARGET_FILES_ABSOLUTE})
-                add_custom_command(TARGET ${APP_TARGET_NAME} POST_BUILD
-                        COMMAND ${CMAKE_COMMAND} -E copy ${MANUAL_FILE} "${APP_RESOURCE_DEST_DIR}/manual/")
-            endforeach(MANUAL_FILE)
-
-            foreach(MANUAL_IMAGE_FILE ${DOC_MANUAL_TARGET_IMAGE_FILES_ABSOLUTE})
-                add_custom_command(TARGET ${APP_TARGET_NAME} POST_BUILD
-                        COMMAND ${CMAKE_COMMAND} -E copy ${MANUAL_IMAGE_FILE} "${APP_RESOURCE_DEST_DIR}/manual/images/")
-            endforeach(MANUAL_IMAGE_FILE)
-        endif()
-    endif()
-endmacro()
-
 # Create the executable target and link with libraries
 add_executable(TrenchBroom WIN32 MACOSX_BUNDLE)
 target_sources(TrenchBroom PRIVATE ${APP_SOURCE} ${INDEX_OUTPUT_PATH} ${DOC_MANUAL_TARGET_FILES_ABSOLUTE} ${DOC_MANUAL_SHORTCUTS_JS_TARGET_ABSOLUTE} ${DOC_MANUAL_TARGET_IMAGE_FILES_ABSOLUTE})
-configure_app_target(TrenchBroom YES)
 
-add_executable(TrenchBroom-nomanual WIN32 MACOSX_BUNDLE EXCLUDE_FROM_ALL)
-target_sources(TrenchBroom-nomanual PRIVATE ${APP_SOURCE})
-configure_app_target(TrenchBroom-nomanual NO)
+target_link_libraries(TrenchBroom common) # common already comes with all its dependencies, no need to repeat them here
+# Xcode "new build system" does't allow custom commands to be depended on by two unrelated targets
+# In this case, ${INDEX_OUTPUT_PATH} is depended on by TrenchBroom and GenerateManual
+# so we must make TrenchBroom depend on GenerateManual (see #3608)
+add_dependencies(TrenchBroom GenerateManual)
+set_compiler_config(TrenchBroom)
+
+set_target_properties(TrenchBroom PROPERTIES AUTORCC TRUE)
+
+if(APPLE)
+    # Configure variables that are substituted into the plist
+    # Set CFBundleName, which controls the application menu label
+    set_target_properties(TrenchBroom PROPERTIES MACOSX_BUNDLE_BUNDLE_NAME "TrenchBroom")
+    # Set CFBundleShortVersionString to "2.0.0". This is displayed in the Finder and Spotlight.
+    set_target_properties(TrenchBroom PROPERTIES MACOSX_BUNDLE_SHORT_VERSION_STRING "${CPACK_PACKAGE_VERSION}")
+    # Set CFBundleVersion to the git describe output. Apple docs say it should be "three non-negative, period-separated integers with the first integer being greater than zero"
+    set_target_properties(TrenchBroom PROPERTIES MACOSX_BUNDLE_BUNDLE_VERSION "${GIT_DESCRIBE}")
+
+    # Set NSHumanReadableCopyright.
+    string(TIMESTAMP TB_MACOSX_BUNDLE_COPYRIGHT "Copyright © %Y Kristian Duske. All rights reserved.")
+    set_target_properties(TrenchBroom PROPERTIES MACOSX_BUNDLE_COPYRIGHT "${TB_MACOSX_BUNDLE_COPYRIGHT}")
+
+    # Set the path to the plist template
+    set_target_properties(TrenchBroom PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${APP_RESOURCE_DIR}/mac/TrenchBroom-Info.plist")
+
+    # If requested, run macdeployqt which copies the Qt frameworks into the
+    # TrenchBroom.app bundle and modifies the TrenchBroom executable to refer to these
+    # private copies of the framework instead of the ones in /usr/local. This is slow so
+    # only do it if requested.
+    if(TB_RUN_MACDEPLOYQT)
+        message(STATUS "macdeployqt requested")
+
+        # Get macdeployqt path (hack)
+        get_target_property(TB_QMAKE_PATH Qt6::qmake IMPORTED_LOCATION)
+        string(REPLACE "qmake" "macdeployqt" TB_MACDEPLOYQT_PATH "${TB_QMAKE_PATH}")
+        message(STATUS "macdeployqt found: ${TB_MACDEPLOYQT_PATH}")
+
+        if(TB_SIGN_MAC_BUNDLE)
+            # Have macdeployqt codesign the app bundle. See Build.md for more details on
+            # how to set up the signing identity.
+            add_custom_command(TARGET TrenchBroom POST_BUILD
+                COMMAND "${TB_MACDEPLOYQT_PATH}" "$<TARGET_BUNDLE_DIR:TrenchBroom>"
+                        "-codesign=${TB_SIGN_IDENTITY}"
+                        "-sign-for-notarization=${TB_SIGN_IDENTITY}"
+                        "-hardened-runtime"
+                        "-verbose=2"
+                COMMAND "codesign"
+                        "--verify"
+                        "--verbose=3"
+                        "--deep"
+                        "--strict"
+                        "$<TARGET_BUNDLE_DIR:TrenchBroom>"
+                VERBATIM)
+        else()
+            add_custom_command(TARGET TrenchBroom POST_BUILD
+                COMMAND "${TB_MACDEPLOYQT_PATH}" "$<TARGET_BUNDLE_DIR:TrenchBroom>")
+        endif()
+    endif()
+endif()
+
+# Copy some Windows-specific resources
+if(WIN32)
+    # Copy icons to target dir
+    add_custom_command(TARGET TrenchBroom PRE_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy "${APP_RESOURCE_DIR}/win32/icons/AppIcon.ico"    "${CMAKE_CURRENT_BINARY_DIR}"
+            COMMAND ${CMAKE_COMMAND} -E copy "${APP_RESOURCE_DIR}/win32/icons/DocIcon.ico"    "${CMAKE_CURRENT_BINARY_DIR}"
+            COMMAND ${CMAKE_COMMAND} -E copy "${APP_RESOURCE_DIR}/win32/icons/WindowIcon.ico" "${CMAKE_CURRENT_BINARY_DIR}")
+
+    # Copy DLLs to app directory
+    add_custom_command(TARGET TrenchBroom POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:assimp::assimp>" "$<TARGET_FILE_DIR:TrenchBroom>"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:freeimage::FreeImage>" "$<TARGET_FILE_DIR:TrenchBroom>"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:freetype>" "$<TARGET_FILE_DIR:TrenchBroom>"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:tinyxml2::tinyxml2>" "$<TARGET_FILE_DIR:TrenchBroom>"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:miniz::miniz>" "$<TARGET_FILE_DIR:TrenchBroom>"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:fmt::fmt>" "$<TARGET_FILE_DIR:TrenchBroom>"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:GLEW::GLEW>" "$<TARGET_FILE_DIR:TrenchBroom>")
+
+    # If requested, run windeployqt which copies the Qt dlls into the deployable folder, along with necessary
+    # runtime dlls by the compiler
+    if(TB_RUN_WINDEPLOYQT)
+        message(STATUS "windeployqt requested")
+
+        # Get windeployqt path (hack)
+        get_target_property(TB_QMAKE_PATH Qt6::qmake IMPORTED_LOCATION)
+        string(REPLACE "qmake" "windeployqt" TB_WINDEPLOYQT_PATH "${TB_QMAKE_PATH}")
+        message(STATUS "windeployqt found: ${TB_WINDEPLOYQT_PATH}")
+
+        add_custom_command(TARGET TrenchBroom POST_BUILD
+                COMMAND "${TB_WINDEPLOYQT_PATH}" --no-compiler-runtime "$<TARGET_FILE_DIR:TrenchBroom>")
+    endif()
+endif()
+
+# Generate a small stripped PDB for release builds so we get stack traces with symbols
+if(COMPILER_IS_MSVC)
+    set_target_properties(TrenchBroom PROPERTIES LINK_FLAGS_RELEASE "/DEBUG /PDBSTRIPPED:Release/TrenchBroom-stripped.pdb /PDBALTPATH:TrenchBroom-stripped.pdb")
+endif()
+
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux|FreeBSD")
+    # Make executable name conventional lowercase on linux
+    string(TOLOWER TrenchBroom APP_TARGET_NAME_LOWER)
+    set_target_properties(TrenchBroom PROPERTIES OUTPUT_NAME ${APP_TARGET_NAME_LOWER})
+endif()
+
+# Set up the resources and DLLs for the executable
+set(APP_RESOURCE_DEST_DIR "$<TARGET_FILE_DIR:TrenchBroom>")
+
+if(WIN32 OR ${CMAKE_SYSTEM_NAME} MATCHES "Linux|FreeBSD")
+    # Copy button images to resources directory
+    add_custom_command(TARGET TrenchBroom POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${APP_RESOURCE_DIR}/graphics/images" "${APP_RESOURCE_DEST_DIR}/images")
+
+    # Copy fonts to resources directory
+    add_custom_command(TARGET TrenchBroom POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${APP_RESOURCE_DIR}/fonts" "${APP_RESOURCE_DEST_DIR}/fonts")
+
+    # Copy default resources to resources directory
+    add_custom_command(TARGET TrenchBroom POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${APP_RESOURCE_DIR}/defaults/" "${APP_RESOURCE_DEST_DIR}/defaults")
+
+    # Copy game files to resources directory
+    add_custom_command(TARGET TrenchBroom POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${APP_RESOURCE_DIR}/games/" "${APP_RESOURCE_DEST_DIR}/games")
+
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        # Copy untested game files to resources directory
+        add_custom_command(TARGET TrenchBroom POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_directory "${APP_RESOURCE_DIR}/games-testing/" "${APP_RESOURCE_DEST_DIR}/games")
+    endif()
+
+    # Copy shader files to resources directory
+    add_custom_command(TARGET TrenchBroom POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${APP_RESOURCE_DIR}/shader" "${APP_RESOURCE_DEST_DIR}/shader")
+
+    # Copy Qt stylesheet files to resources directory
+    add_custom_command(TARGET TrenchBroom POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_RESOURCE_DEST_DIR}/stylesheets/"
+            COMMAND ${CMAKE_COMMAND} -E copy_directory "${APP_RESOURCE_DIR}/stylesheets" "${APP_RESOURCE_DEST_DIR}/stylesheets")
+
+    # Copy update scripts to resources directory
+    add_custom_command(TARGET TrenchBroom POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_RESOURCE_DEST_DIR}/update/"
+            COMMAND ${CMAKE_COMMAND} -E copy "${LIB_UPDATE_SCRIPT}" "${APP_RESOURCE_DEST_DIR}/update")
+
+    # Copy manual files to resource directory
+    add_custom_command(TARGET TrenchBroom POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_RESOURCE_DEST_DIR}/manual/"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${APP_RESOURCE_DEST_DIR}/manual/images"
+            COMMAND ${CMAKE_COMMAND} -E copy "${INDEX_OUTPUT_PATH}" "${APP_RESOURCE_DEST_DIR}/manual/"
+            COMMAND ${CMAKE_COMMAND} -E copy "${DOC_MANUAL_SHORTCUTS_JS_TARGET_ABSOLUTE}" "${APP_RESOURCE_DEST_DIR}/manual/")
+
+    foreach(MANUAL_FILE ${DOC_MANUAL_TARGET_FILES_ABSOLUTE})
+        add_custom_command(TARGET TrenchBroom POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy ${MANUAL_FILE} "${APP_RESOURCE_DEST_DIR}/manual/")
+    endforeach(MANUAL_FILE)
+
+    foreach(MANUAL_IMAGE_FILE ${DOC_MANUAL_TARGET_IMAGE_FILES_ABSOLUTE})
+        add_custom_command(TARGET TrenchBroom POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy ${MANUAL_IMAGE_FILE} "${APP_RESOURCE_DEST_DIR}/manual/images/")
+    endforeach(MANUAL_IMAGE_FILE)
+endif()
 
 # Common CPack configuration
-set(APP_PACKAGE_FILE_NAME "TrenchBroom-${APP_PLATFORM_NAME}-${GIT_DESCRIBE}-${CMAKE_BUILD_TYPE}")
+set(APP_PACKAGE_FILE_NAME "TrenchBroom-${APP_PLATFORM_NAME}-${CMAKE_SYSTEM_PROCESSOR}-${GIT_DESCRIBE}-${CMAKE_BUILD_TYPE}")
 set(CPACK_PACKAGE_FILE_NAME ${APP_PACKAGE_FILE_NAME})
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "TrenchBroom Level Editor")
 set(CPACK_PACKAGE_VENDOR "TrenchBroom")
@@ -265,11 +289,6 @@ endif()
 
 # Platform specific CPack configuration
 if(WIN32)
-    if(COMPILER_IS_MSVC)
-        # set(CMAKE_INSTALLL_DEBUG_LIBRARIES OFF)
-        # INCLUDE(InstallRequiredSystemLibraries)
-    endif()
-
     # Copy PDB files (msvc debug symbols)
     if(COMPILER_IS_MSVC)
         if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
@@ -299,14 +318,14 @@ if(WIN32)
         endforeach()
     ]])
 
-    #Qt plugins
-    install(FILES
-            $<TARGET_FILE:Qt5::QWindowsIntegrationPlugin>
-            DESTINATION platforms COMPONENT TrenchBroom)
-    install(FILES
-            $<TARGET_FILE:Qt5::QWindowsVistaStylePlugin>
-            DESTINATION styles COMPONENT TrenchBroom)
+    # Qt plugins etc.
+    install(DIRECTORY
+            "$<TARGET_FILE_DIR:TrenchBroom>/platforms"
+            "$<TARGET_FILE_DIR:TrenchBroom>/styles"
+            "$<TARGET_FILE_DIR:TrenchBroom>/tls"
+            DESTINATION . COMPONENT TrenchBroom)
 
+    
     #Manual
     install(FILES ${INDEX_OUTPUT_PATH} DESTINATION manual COMPONENT TrenchBroom)
     install(FILES ${DOC_MANUAL_SHORTCUTS_JS_TARGET_ABSOLUTE} DESTINATION manual COMPONENT TrenchBroom)
@@ -317,36 +336,38 @@ if(WIN32)
             ${DOC_MANUAL_TARGET_IMAGE_FILES_ABSOLUTE}
             DESTINATION manual/images COMPONENT TrenchBroom)
     install(DIRECTORY
-            "${APP_DIR}/resources/graphics/images"
-            "${APP_DIR}/resources/fonts"
             "${APP_DIR}/resources/defaults"
+            "${APP_DIR}/resources/fonts"
             "${APP_DIR}/resources/games"
+            "${APP_DIR}/resources/graphics/images"
             "${APP_DIR}/resources/shader"
             "${APP_DIR}/resources/stylesheets"
             DESTINATION . COMPONENT TrenchBroom)
-    set(CPACK_GENERATOR "7Z")
+    install(FILES
+            ${LIB_UPDATE_SCRIPT}
+            DESTINATION update COMPONENT TrenchBroom)
+    set(CPACK_GENERATOR "ZIP")
     set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY FALSE)
 
-    set(CPACK_PACKAGE_FILE_EXT "7z")
+    set(CPACK_PACKAGE_FILE_EXT "zip")
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/GenerateChecksum.bat.in" "${CMAKE_BINARY_DIR}/generate_checksum.bat" @ONLY)
 elseif(APPLE)
     install(TARGETS TrenchBroom BUNDLE DESTINATION . COMPONENT TrenchBroom)
-    set(CPACK_GENERATOR "DragNDrop")
 
-    set(CPACK_PACKAGE_FILE_EXT "dmg")
+    set(CPACK_PACKAGE_FILE_EXT "zip")
+    set(CPACK_GENERATOR "ZIP")
+    set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY FALSE)
+
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/SignMacOsArchive.sh.in" "${CMAKE_CURRENT_BINARY_DIR}/sign_macos_archive.sh" @ONLY)
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/GenerateChecksum.sh.in" "${CMAKE_CURRENT_BINARY_DIR}/generate_checksum.sh" @ONLY)
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    # add architecture to filename
-    set(APP_PACKAGE_FILE_NAME "${APP_PACKAGE_FILE_NAME}.${CMAKE_SYSTEM_PROCESSOR}")
-    set(CPACK_PACKAGE_FILE_NAME ${APP_PACKAGE_FILE_NAME})
-
     set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
 
     set(LINUX_RESOURCE_LOCATION "share/TrenchBroom")
     set(LINUX_TARGET_RESOURCE_DIRECTORY ${CPACK_PACKAGING_INSTALL_PREFIX}/${LINUX_RESOURCE_LOCATION})
 
     # add mime type definitions
-    install(FILES "${APP_DIR}/resources/linux/trenchbroom.xml" DESTINATION "${CPACK_PACKAGING_INSTALL_PREFIX}/share/mime/packages/" COMPONENT TrenchBroom)
+    install(FILES "${APP_DIR}/resources/linux/trenchbroom.xml" DESTINATION "share/mime/packages/" COMPONENT TrenchBroom)
 
     # configure install scripts
     configure_file(${APP_DIR}/resources/linux/postinst ${CMAKE_CURRENT_BINARY_DIR}/linux/postinst @ONLY)
@@ -362,8 +383,20 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/images"          DESTINATION ${LINUX_RESOURCE_LOCATION} COMPONENT TrenchBroom)
     install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/shader"          DESTINATION ${LINUX_RESOURCE_LOCATION} COMPONENT TrenchBroom)
     install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/stylesheets"     DESTINATION ${LINUX_RESOURCE_LOCATION} COMPONENT TrenchBroom)
+    install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/update"          DESTINATION ${LINUX_RESOURCE_LOCATION} COMPONENT TrenchBroom)
     install(FILES "${CMAKE_SOURCE_DIR}/LICENSE.txt"                 DESTINATION ${LINUX_RESOURCE_LOCATION} COMPONENT TrenchBroom)
     install(FILES "${APP_DIR}/resources/linux/copyright"            DESTINATION ${LINUX_RESOURCE_LOCATION} COMPONENT TrenchBroom)
+
+    # configure AppImage via an external CPack generator
+    set(CPACK_PACKAGE_FILE_EXT "zip")
+    set(TB_LINUXDEPLOY_PATH "../linuxdeploy-x86_64.AppImage")
+    get_target_property(TB_QMAKE_PATH Qt6::qmake IMPORTED_LOCATION)
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/AppImageGenerator.cmake.in" "${CMAKE_BINARY_DIR}/AppImageGenerator.cmake" @ONLY)
+
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/GenerateChecksum.sh.in" "${CMAKE_CURRENT_BINARY_DIR}/generate_checksum.sh" @ONLY)
+    set(CPACK_EXTERNAL_PACKAGE_SCRIPT "${CMAKE_BINARY_DIR}/AppImageGenerator.cmake")
+    set(CPACK_EXTERNAL_ENABLE_STAGING True)
+    set(CPACK_GENERATOR "External")
 endif()
 
 include(CPack)

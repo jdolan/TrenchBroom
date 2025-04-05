@@ -21,8 +21,8 @@ along with TrenchBroom. If not, see <http://www.gnu.org/licenses/>.
 #include <QTextEdit>
 #include <QtTest/QSignalSpy>
 
+#include "CmdTool.h"
 #include "MapDocumentTest.h"
-#include "ReturnExitCode.h"
 #include "TestUtils.h"
 #include "TrenchBroomApp.h"
 #include "el/VariableStore.h"
@@ -34,6 +34,9 @@ along with TrenchBroom. If not, see <http://www.gnu.org/licenses/>.
 #include "ui/CompilationVariables.h"
 #include "ui/TextOutputAdapter.h"
 
+#include "kdl/path_utils.h"
+#include "kdl/string_utils.h"
+
 #include <chrono>
 #include <condition_variable>
 #include <filesystem>
@@ -44,6 +47,7 @@ along with TrenchBroom. If not, see <http://www.gnu.org/licenses/>.
 namespace tb::ui
 {
 using namespace std::chrono_literals;
+using namespace std::string_literals;
 
 namespace
 {
@@ -64,18 +68,18 @@ public:
     : m_runner{runner}
   {
     QObject::connect(&m_runner, &CompilationTaskRunner::start, [&]() {
-      started = true;
       auto lock = std::unique_lock<std::mutex>{m_mutex};
+      started = true;
       m_condition.notify_all();
     });
     QObject::connect(&m_runner, &CompilationTaskRunner::error, [&]() {
-      errored = true;
       auto lock = std::unique_lock<std::mutex>{m_mutex};
+      errored = true;
       m_condition.notify_all();
     });
     QObject::connect(&m_runner, &CompilationTaskRunner::end, [&]() {
-      ended = true;
       auto lock = std::unique_lock<std::mutex>{m_mutex};
+      ended = true;
       m_condition.notify_all();
     });
   }
@@ -123,12 +127,41 @@ TEST_CASE_METHOD(MapDocumentTest, "CompilationRunToolTaskRunner")
     CHECK_FALSE(exec.ended);
   }
 
+  SECTION("system specific path separators")
+  {
+    const auto pathSeparator = std::string{std::filesystem::path::preferred_separator};
+    const auto incompatiblePathSeparator = pathSeparator == "/" ? "\\"s : "/"s;
+
+    const auto systemPath = std::string{CMD_TOOL_PATH};
+    const auto incompatiblePath =
+      kdl::str_replace_every(systemPath, pathSeparator, incompatiblePathSeparator);
+
+    const auto toolPath = GENERATE_REF(systemPath, incompatiblePath);
+
+    CAPTURE(toolPath);
+
+    auto variables = el::NullVariableStore{};
+    auto output = QTextEdit{};
+    auto outputAdapter = TextOutputAdapter{&output};
+
+    auto context = CompilationContext{document, variables, outputAdapter, false};
+
+    const auto treatNonZeroResultCodeAsError = GENERATE(true, false);
+    auto task =
+      mdl::CompilationRunTool{true, toolPath, "--exit 0", treatNonZeroResultCodeAsError};
+    auto runner = CompilationRunToolTaskRunner{context, task};
+
+    auto exec = ExecuteTask{runner};
+    REQUIRE(exec.executeAndWait(5000ms));
+
+    CHECK(exec.started);
+    CHECK_FALSE(exec.errored);
+    CHECK(exec.ended);
+  }
+
   SECTION("toolReturnsZeroExitCode")
   {
-    auto testEnvironment = io::TestEnvironment{};
-    testEnvironment.createFile("test.txt", "hello world");
-
-    auto variables = CompilationVariables{document, testEnvironment.dir().string()};
+    auto variables = el::NullVariableStore{};
     auto output = QTextEdit{};
     auto outputAdapter = TextOutputAdapter{&output};
 
@@ -136,7 +169,7 @@ TEST_CASE_METHOD(MapDocumentTest, "CompilationRunToolTaskRunner")
 
     const auto treatNonZeroResultCodeAsError = GENERATE(true, false);
     auto task = mdl::CompilationRunTool{
-      true, RETURN_EXITCODE_PATH, "--exit 0", treatNonZeroResultCodeAsError};
+      true, CMD_TOOL_PATH, "--exit 0", treatNonZeroResultCodeAsError};
     auto runner = CompilationRunToolTaskRunner{context, task};
 
     auto exec = ExecuteTask{runner};
@@ -157,7 +190,7 @@ TEST_CASE_METHOD(MapDocumentTest, "CompilationRunToolTaskRunner")
 
     const auto treatNonZeroResultCodeAsError = GENERATE(true, false);
     auto task = mdl::CompilationRunTool{
-      true, RETURN_EXITCODE_PATH, "--exit 1", treatNonZeroResultCodeAsError};
+      true, CMD_TOOL_PATH, "--exit 1", treatNonZeroResultCodeAsError};
     auto runner = CompilationRunToolTaskRunner{context, task};
 
     auto exec = ExecuteTask{runner};
@@ -166,6 +199,31 @@ TEST_CASE_METHOD(MapDocumentTest, "CompilationRunToolTaskRunner")
     CHECK(exec.started);
     CHECK(exec.errored == treatNonZeroResultCodeAsError);
     CHECK(exec.ended == !treatNonZeroResultCodeAsError);
+  }
+
+  SECTION("argumentPassing")
+  {
+    auto variables = el::NullVariableStore{};
+    auto output = QTextEdit{};
+    auto outputAdapter = TextOutputAdapter{&output};
+
+    auto context = CompilationContext{document, variables, outputAdapter, false};
+
+    auto task = mdl::CompilationRunTool{
+      true, CMD_TOOL_PATH, R"(--printArgs 1 2 str "escaped str")", false};
+    auto runner = CompilationRunToolTaskRunner{context, task};
+
+    auto exec = ExecuteTask{runner};
+    REQUIRE(exec.executeAndWait(5000ms));
+
+    REQUIRE(exec.started);
+    REQUIRE_FALSE(exec.errored);
+    REQUIRE(exec.ended);
+
+    CHECK_THAT(output.toPlainText().toStdString(), Catch::Contains(R"(1
+2
+str
+escaped str)"));
   }
 
 #if !defined(_WIN32) && !defined(_WIN64)
@@ -180,7 +238,7 @@ TEST_CASE_METHOD(MapDocumentTest, "CompilationRunToolTaskRunner")
 
     const auto treatNonZeroResultCodeAsError = GENERATE(true, false);
     auto task = mdl::CompilationRunTool{
-      true, RETURN_EXITCODE_PATH, "--abort", treatNonZeroResultCodeAsError};
+      true, CMD_TOOL_PATH, "--abort", treatNonZeroResultCodeAsError};
     auto runner = CompilationRunToolTaskRunner{context, task};
 
     auto exec = ExecuteTask{runner};
@@ -204,7 +262,7 @@ TEST_CASE_METHOD(MapDocumentTest, "CompilationRunToolTaskRunner")
 
     const auto treatNonZeroResultCodeAsError = GENERATE(true, false);
     auto task = mdl::CompilationRunTool{
-      true, RETURN_EXITCODE_PATH, "--crash", treatNonZeroResultCodeAsError};
+      true, CMD_TOOL_PATH, "--crash", treatNonZeroResultCodeAsError};
     auto runner = CompilationRunToolTaskRunner{context, task};
 
     auto exec = ExecuteTask{runner};
@@ -239,10 +297,15 @@ TEST_CASE("CompilationExportMapTaskRunner")
 
   SECTION("exportMap")
   {
+    const auto exportPath =
+      GENERATE("${WORK_DIR_PATH}/exported.map", "${WORK_DIR_PATH}\\exported.map");
+
+    CAPTURE(exportPath);
+
     auto node = new mdl::EntityNode{mdl::Entity{}};
     document->addNodes({{document->parentForNodes(), {node}}});
 
-    auto task = mdl::CompilationExportMap{true, "${WORK_DIR_PATH}/exported.map"};
+    auto task = mdl::CompilationExportMap{true, exportPath};
 
     auto runner = CompilationExportMapTaskRunner{context, task};
     REQUIRE_NOTHROW(runner.execute());
@@ -280,7 +343,9 @@ TEST_CASE_METHOD(MapDocumentTest, "CompilationCopyFilesTaskRunner")
     const auto sourcePath = "my_map.map";
     testEnvironment.createFile(sourcePath, "{}");
 
-    const auto targetPath = std::filesystem::path{"some/other/path"};
+    const auto targetPath = GENERATE("some/other/path"s, "some\\other\\path"s);
+
+    CAPTURE(targetPath);
 
     auto task = mdl::CompilationCopyFiles{
       true,
@@ -290,8 +355,8 @@ TEST_CASE_METHOD(MapDocumentTest, "CompilationCopyFilesTaskRunner")
 
     REQUIRE_NOTHROW(runner.execute());
 
-    CHECK(testEnvironment.directoryExists(targetPath));
-    CHECK(testEnvironment.loadFile(targetPath / sourcePath) == "{}");
+    CHECK(testEnvironment.directoryExists(kdl::parse_path(targetPath)));
+    CHECK(testEnvironment.loadFile(kdl::parse_path(targetPath) / sourcePath) == "{}");
   }
 
   SECTION("variable interpolation errors")
@@ -326,7 +391,12 @@ TEST_CASE_METHOD(MapDocumentTest, "CompilationRenameFileTaskRunner")
     const auto sourcePath = "my_map.map";
     testEnvironment.createFile(sourcePath, "{}");
 
-    const auto targetPath = std::filesystem::path{"some/other/path/your_map.map"};
+    const auto targetPathStr =
+      GENERATE("some/other/path/your_map.map"s, "some\\other\\path\\your_map.map"s);
+
+    CAPTURE(targetPathStr);
+
+    const auto targetPath = kdl::parse_path(targetPathStr);
     if (overwrite)
     {
       testEnvironment.createDirectory(targetPath.parent_path());
@@ -337,7 +407,7 @@ TEST_CASE_METHOD(MapDocumentTest, "CompilationRenameFileTaskRunner")
     auto task = mdl::CompilationRenameFile{
       true,
       (testEnvironment.dir() / sourcePath).string(),
-      (testEnvironment.dir() / targetPath).string()};
+      (testEnvironment.dir() / targetPathStr).string()};
     auto runner = CompilationRenameFileTaskRunner{context, task};
 
     REQUIRE_NOTHROW(runner.execute());

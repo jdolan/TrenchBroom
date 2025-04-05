@@ -19,8 +19,11 @@
 
 #pragma once
 
-#include <iosfwd>
+#include "kdl/reflection_decl.h"
+
 #include <optional>
+#include <string>
+#include <string_view>
 
 namespace tb
 {
@@ -29,15 +32,11 @@ struct FileLocation
 {
   size_t line = 0;
   std::optional<size_t> column = std::nullopt;
+
+  kdl_reflect_decl(FileLocation, line, column);
 };
 
-bool operator==(const FileLocation& lhs, const FileLocation& rhs);
-bool operator!=(const FileLocation& lhs, const FileLocation& rhs);
-bool operator<(const FileLocation& lhs, const FileLocation& rhs);
-bool operator<=(const FileLocation& lhs, const FileLocation& rhs);
-bool operator>(const FileLocation& lhs, const FileLocation& rhs);
-bool operator>=(const FileLocation& lhs, const FileLocation& rhs);
-
-std::ostream& operator<<(std::ostream& lhs, const FileLocation& rhs);
+std::string prependLocation(
+  const std::optional<FileLocation>& location, std::string_view str);
 
 } // namespace tb

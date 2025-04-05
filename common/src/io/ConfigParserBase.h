@@ -19,11 +19,11 @@
 
 #pragma once
 
+#include "Result.h"
 #include "el/EL_Forward.h"
 #include "io/ELParser.h"
 
 #include <filesystem>
-#include <string>
 
 namespace tb::io
 {
@@ -43,16 +43,6 @@ public:
   virtual ~ConfigParserBase();
 
 protected:
-  el::ExpressionNode parseConfigFile();
+  Result<el::ExpressionNode> parseConfigFile();
 };
-
-void expectType(
-  const el::Value& value, const el::EvaluationTrace& trace, el::ValueType type);
-void expectStructure(
-  const el::Value& value, const el::EvaluationTrace& trace, const std::string& structure);
-void expectMapEntry(
-  const el::Value& value,
-  const el::EvaluationTrace& trace,
-  const std::string& key,
-  el::ValueType type);
 } // namespace tb::io

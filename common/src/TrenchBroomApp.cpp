@@ -44,7 +44,10 @@
 #include "ui/PreferenceDialog.h"
 #include "ui/QtUtils.h"
 #include "ui/RecentDocuments.h"
+#include "ui/UpdateConfig.h"
 #include "ui/WelcomeWindow.h"
+#include "upd/QtHttpClient.h"
+#include "upd/Updater.h"
 
 #include "kdl/vector_utils.h"
 #ifdef __APPLE__
@@ -59,6 +62,7 @@
 #include <QFileDialog>
 #include <QMenuBar>
 #include <QMessageBox>
+#include <QNetworkAccessManager>
 #include <QPalette>
 #include <QProxyStyle>
 #include <QStandardPaths>
@@ -70,6 +74,7 @@
 #include "kdl/string_utils.h"
 
 #include <fmt/format.h>
+#include <fmt/std.h>
 
 #include <chrono>
 #include <clocale>
@@ -77,10 +82,15 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#if defined(_WIN32) && defined(_MSC_VER)
+#include <windows.h>
+#endif
 
 namespace tb::ui
 {
@@ -144,6 +154,9 @@ LONG WINAPI TrenchBroomUnhandledExceptionFilter(PEXCEPTION_POINTERS pExceptionPt
 
 TrenchBroomApp::TrenchBroomApp(int& argc, char** argv)
   : QApplication{argc, argv}
+  , m_networkManager{new QNetworkAccessManager{this}}
+  , m_httpClient{new upd::QtHttpClient{*m_networkManager}}
+  , m_updater{new upd::Updater{*m_httpClient, makeUpdateConfig(), this}}
   , m_taskManager{std::thread::hardware_concurrency()}
 {
   using namespace std::chrono_literals;
@@ -230,11 +243,42 @@ TrenchBroomApp::TrenchBroomApp(int& argc, char** argv)
     }
   }
 #endif
+
+  if (pref(Preferences::AutoCheckForUpdates))
+  {
+    m_updater->checkForUpdates();
+  }
 }
 
 TrenchBroomApp::~TrenchBroomApp()
 {
   PreferenceManager::destroyInstance();
+}
+
+void TrenchBroomApp::askForAutoUpdates()
+{
+  if (pref(Preferences::AskForAutoUpdates))
+  {
+    auto& prefs = PreferenceManager::instance();
+
+    const auto enableAutoCheck =
+      QMessageBox::question(
+        nullptr,
+        "TrenchBroom",
+        tr(
+          R"(TrenchBroom can check for updates automatically. Would you like to enable this now?)"),
+        QMessageBox::Yes | QMessageBox::No)
+      == QMessageBox::Yes;
+
+    prefs.set(Preferences::AutoCheckForUpdates, enableAutoCheck);
+    prefs.set(Preferences::AskForAutoUpdates, false);
+    prefs.saveChanges();
+
+    if (enableAutoCheck)
+    {
+      updater().checkForUpdates();
+    }
+  }
 }
 
 void TrenchBroomApp::parseCommandLineAndShowFrame()
@@ -243,6 +287,11 @@ void TrenchBroomApp::parseCommandLineAndShowFrame()
   parser.addOption(QCommandLineOption("portable"));
   parser.process(*this);
   openFilesOrWelcomeFrame(parser.positionalArguments());
+}
+
+upd::Updater& TrenchBroomApp::updater()
+{
+  return *m_updater;
 }
 
 FrameManager* TrenchBroomApp::frameManager()
@@ -298,7 +347,7 @@ QPalette TrenchBroomApp::darkPalette()
 bool TrenchBroomApp::loadStyleSheets()
 {
   const auto path = io::SystemPaths::findResourceFile("stylesheets/base.qss");
-  if (auto file = QFile{io::pathAsQString(path)}; file.exists())
+  if (auto file = QFile{io::pathAsQPath(path)}; file.exists())
   {
     // closed automatically by destructor
     file.open(QFile::ReadOnly | QFile::Text);
@@ -387,7 +436,7 @@ bool TrenchBroomApp::openDocument(const std::filesystem::path& path)
   const auto checkFileExists = [&]() {
     return io::Disk::pathInfo(absPath) == io::PathInfo::File
              ? Result<void>{}
-             : Result<void>{Error{"'" + path.string() + "' not found"}};
+             : Result<void>{Error{fmt::format("{} not found", path)}};
   };
 
   auto* frame = static_cast<MapFrame*>(nullptr);
@@ -538,9 +587,7 @@ void TrenchBroomApp::openDocument()
 void TrenchBroomApp::showManual()
 {
   const auto manualPath = io::SystemPaths::findResourceFile("manual/index.html");
-  const auto manualPathString = manualPath.string();
-  const auto manualPathUrl =
-    QUrl::fromLocalFile(QString::fromStdString(manualPathString));
+  const auto manualPathUrl = QUrl::fromLocalFile(io::pathAsQString(manualPath));
   QDesktopServices::openUrl(manualPathUrl);
 }
 
@@ -565,8 +612,8 @@ void TrenchBroomApp::debugShowCrashReportDialog()
 }
 
 /**
- * If we catch exceptions in main() that are otherwise uncaught, Qt prints a warning to
- * override QCoreApplication::notify() and catch exceptions there instead.
+ * If we catch exceptions in main() that are otherwise uncaught, Qt prints a warning
+ * to override QCoreApplication::notify() and catch exceptions there instead.
  */
 bool TrenchBroomApp::notify(QObject* receiver, QEvent* event)
 {
@@ -712,8 +759,7 @@ std::filesystem::path crashReportBasePath()
   {
     ++index;
 
-    const auto testCrashLogName =
-      fmt::format("{}-{}.txt", crashLogPath.stem().string(), index);
+    const auto testCrashLogName = fmt::format("{}-{}.txt", crashLogPath.stem(), index);
     testCrashLogPath = crashLogPath.parent_path() / testCrashLogName;
   }
 
@@ -772,8 +818,8 @@ void reportCrashAndExit(const std::string& stacktrace, const std::string& reason
     }
 
     // Copy the log file
-    if (!QFile::copy(
-          io::pathAsQString(io::SystemPaths::logFilePath()), io::pathAsQString(logPath)))
+    auto ec = std::error_code{};
+    if (!std::filesystem::copy_file(io::SystemPaths::logFilePath(), logPath, ec) || ec)
     {
       logPath = std::filesystem::path{};
     }
@@ -813,5 +859,4 @@ static void CrashHandler(int /* signum */)
   tb::ui::reportCrashAndExit(tb::TrenchBroomStackWalker::getStackTrace(), "SIGSEGV");
 }
 #endif
-
 } // namespace tb::ui

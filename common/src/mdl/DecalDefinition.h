@@ -19,11 +19,10 @@
 
 #pragma once
 
+#include "Result.h"
 #include "el/Expression.h"
 
 #include "kdl/reflection_decl.h"
-
-#include <iosfwd>
 
 namespace tb
 {
@@ -62,20 +61,17 @@ public:
    * variables.
    *
    * @param variableStore the variable store to use when interpolating variables
-   * @return the decal specification
-   *
-   * @throws el::Exception if the expression could not be evaluated
+   * @return the decal specification or an error if evaluation failed
    */
-  DecalSpecification decalSpecification(const el::VariableStore& variableStore) const;
+  Result<DecalSpecification> decalSpecification(
+    const el::VariableStore& variableStore) const;
 
   /**
-   * Evaluates the decal expresion.
+   * Evaluates the decal expression.
    *
-   * @return the decal specification
-   *
-   * @throws el::Exception if the expression could not be evaluated
+   * @return the decal specification or an error if evaluation failed
    */
-  DecalSpecification defaultDecalSpecification() const;
+  Result<DecalSpecification> defaultDecalSpecification() const;
 
   kdl_reflect_decl(DecalDefinition, m_expression);
 };

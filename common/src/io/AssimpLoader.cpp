@@ -26,6 +26,7 @@
 #include "io/File.h"
 #include "io/FileSystem.h"
 #include "io/MaterialUtils.h"
+#include "io/ParserException.h"
 #include "io/PathInfo.h"
 #include "io/ReadFreeImageTexture.h"
 #include "io/ResourceUtils.h"
@@ -39,7 +40,6 @@
 #include "kdl/path_utils.h"
 #include "kdl/result.h"
 #include "kdl/result_fold.h"
-#include "kdl/string_format.h"
 #include "kdl/vector_utils.h"
 
 #include <assimp/IOStream.hpp>
@@ -49,11 +49,13 @@
 #include <assimp/scene.h>
 #include <assimp/types.h>
 #include <fmt/format.h>
+#include <fmt/std.h>
 
 #include <optional>
 #include <ranges>
 #include <string_view>
 #include <utility>
+
 
 namespace tb::io
 {
@@ -281,7 +283,7 @@ std::vector<mdl::Texture> loadTexturesForMaterial(
     logger.error(fmt::format(
       "No diffuse textures found for material {} of model '{}', loading fallback texture",
       materialIndex,
-      modelPath.string()));
+      modelPath));
 
     textures.push_back(loadFallbackOrDefaultTexture(fs, logger));
   }
@@ -792,7 +794,7 @@ AssimpLoader::AssimpLoader(std::filesystem::path path, const FileSystem& fs)
 bool AssimpLoader::canParse(const std::filesystem::path& path)
 {
   // clang-format off
-  static const auto supportedExtensions = std::vector<std::string>{
+  static const auto supportedExtensions = std::vector<std::filesystem::path>{
     // Quake model formats have been omitted since Trenchbroom's got its own parsers
     // already.
     ".3mf",  ".dae",      ".xml",          ".blend",    ".bvh",       ".3ds",  ".ase",
@@ -807,8 +809,7 @@ bool AssimpLoader::canParse(const std::filesystem::path& path)
     ".csm",  ".ply",      ".cob",          ".scn",      ".xgl"};
   // clang-format on
 
-  return kdl::vec_contains(
-    supportedExtensions, kdl::str_to_lower(path.extension().string()));
+  return kdl::vec_contains(supportedExtensions, kdl::path_to_lower(path.extension()));
 }
 
 Result<mdl::EntityModelData> AssimpLoader::load(tb::Logger& logger)
@@ -829,9 +830,7 @@ Result<mdl::EntityModelData> AssimpLoader::load(tb::Logger& logger)
     if (!scene)
     {
       return Error{fmt::format(
-        "Assimp couldn't import model from '{}': {}",
-        m_path.string(),
-        importer.GetErrorString())};
+        "Assimp couldn't import model from '{}': {}", m_path, importer.GetErrorString())};
     }
 
     // Create model data.

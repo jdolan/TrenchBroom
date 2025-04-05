@@ -26,6 +26,9 @@
 #include "kdl/overload.h"
 #include "kdl/path_utils.h"
 
+#include <fmt/format.h>
+#include <fmt/std.h>
+
 #include <cassert>
 #include <memory>
 
@@ -195,6 +198,12 @@ Result<void> ImageFileSystemBase::reload()
   return doReadDirectory();
 }
 
+void ImageFileSystemBase::setMetadata(
+  std::unordered_map<std::string, FileSystemMetadata> metadata)
+{
+  m_metadata = std::move(metadata);
+}
+
 void ImageFileSystemBase::addFile(const std::filesystem::path& path, GetImageFile getFile)
 {
   auto& directoryEntry =
@@ -218,6 +227,19 @@ PathInfo ImageFileSystemBase::pathInfo(const std::filesystem::path& path) const
   const auto* entry = findEntry(kdl::path_to_lower(path), m_root);
   return entry ? isDirectory(*entry) ? PathInfo::Directory : PathInfo::File
                : PathInfo::Unknown;
+}
+
+const FileSystemMetadata* ImageFileSystemBase::metadata(
+  const std::filesystem::path& path, const std::string& key) const
+{
+  if (findEntry(kdl::path_to_lower(path), m_root))
+  {
+    if (const auto it = m_metadata.find(key); it != m_metadata.end())
+    {
+      return &it->second;
+    }
+  }
+  return nullptr;
 }
 
 namespace
@@ -273,12 +295,20 @@ Result<std::shared_ptr<File>> ImageFileSystemBase::doOpenFile(
         kdl::overload(
           [&](const ImageDirectoryEntry&) {
             return Result<std::shared_ptr<File>>{
-              Error{"Cannot open directory entry at '" + path.string() + "'"}};
+              Error{fmt::format("Cannot open directory entry at {}", path)}};
           },
           [](const ImageFileEntry& fileEntry) { return fileEntry.getFile(); }),
         entry);
     },
-    Result<std::shared_ptr<File>>{Error{"'" + path.string() + "' not found"}});
+    Result<std::shared_ptr<File>>{Error{fmt::format("{} not found", path)}});
+}
+
+std::unordered_map<std::string, FileSystemMetadata> makeImageFileSystemMetadata(
+  std::filesystem::path imageFilePath)
+{
+  return {
+    {FileSystemMetadataKeys::ImageFilePath, FileSystemMetadata{imageFilePath}},
+  };
 }
 
 } // namespace tb::io

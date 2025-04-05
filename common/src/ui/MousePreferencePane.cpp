@@ -100,8 +100,12 @@ void MousePreferencePane::createGui()
   m_flyMoveSpeedSlider->setMaximumWidth(400);
 
   auto* layout = new FormWithSectionsLayout{};
-  layout->setContentsMargins(0, LayoutConstants::MediumVMargin, 0, 0);
-  layout->setVerticalSpacing(2);
+  layout->setContentsMargins(
+    LayoutConstants::DialogOuterMargin,
+    LayoutConstants::DialogOuterMargin,
+    LayoutConstants::DialogOuterMargin,
+    LayoutConstants::DialogOuterMargin);
+  layout->setVerticalSpacing(LayoutConstants::NarrowVMargin);
   // override the default to make the sliders take up maximum width
   layout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
 
@@ -158,12 +162,12 @@ void MousePreferencePane::bindEvents()
     &MousePreferencePane::lookSpeedChanged);
   connect(
     m_invertLookHAxisCheckBox,
-    &QCheckBox::stateChanged,
+    &QCheckBox::checkStateChanged,
     this,
     &MousePreferencePane::invertLookHAxisChanged);
   connect(
     m_invertLookVAxisCheckBox,
-    &QCheckBox::stateChanged,
+    &QCheckBox::checkStateChanged,
     this,
     &MousePreferencePane::invertLookVAxisChanged);
 
@@ -174,12 +178,12 @@ void MousePreferencePane::bindEvents()
     &MousePreferencePane::panSpeedChanged);
   connect(
     m_invertPanHAxisCheckBox,
-    &QCheckBox::stateChanged,
+    &QCheckBox::checkStateChanged,
     this,
     &MousePreferencePane::invertPanHAxisChanged);
   connect(
     m_invertPanVAxisCheckBox,
-    &QCheckBox::stateChanged,
+    &QCheckBox::checkStateChanged,
     this,
     &MousePreferencePane::invertPanVAxisChanged);
 
@@ -190,22 +194,22 @@ void MousePreferencePane::bindEvents()
     &MousePreferencePane::moveSpeedChanged);
   connect(
     m_invertMouseWheelCheckBox,
-    &QCheckBox::stateChanged,
+    &QCheckBox::checkStateChanged,
     this,
     &MousePreferencePane::invertMouseWheelChanged);
   connect(
     m_enableAltMoveCheckBox,
-    &QCheckBox::stateChanged,
+    &QCheckBox::checkStateChanged,
     this,
     &MousePreferencePane::enableAltMoveChanged);
   connect(
     m_invertAltMoveAxisCheckBox,
-    &QCheckBox::stateChanged,
+    &QCheckBox::checkStateChanged,
     this,
     &MousePreferencePane::invertAltMoveAxisChanged);
   connect(
     m_moveInCursorDirCheckBox,
-    &QCheckBox::stateChanged,
+    &QCheckBox::checkStateChanged,
     this,
     &MousePreferencePane::moveInCursorDirChanged);
 

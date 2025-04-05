@@ -1,10 +1,10 @@
 #!/bin/bash
 
-set -o verbose
+# set -o verbose
 
 # install linuxdeploy
-wget https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20240109-1/linuxdeploy-x86_64.AppImage
-wget https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/1-alpha-20240109-1/linuxdeploy-plugin-qt-x86_64.AppImage
+wget -nc https://github.com/linuxdeploy/linuxdeploy/releases/download/1-alpha-20240109-1/linuxdeploy-x86_64.AppImage
+wget -nc https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/1-alpha-20240109-1/linuxdeploy-plugin-qt-x86_64.AppImage
 chmod u+x ./linuxdeploy-x86_64.AppImage
 chmod u+x ./linuxdeploy-plugin-qt-x86_64.AppImage
 
@@ -13,15 +13,27 @@ qmake -v
 cmake --version
 pandoc --version
 ./linuxdeploy-x86_64.AppImage --version
-./linuxdeploy-plugin-qt-x86_64.AppImage --version
+./linuxdeploy-plugin-qt-x86_64.AppImage --plugin-version
+
+ccache -p
 
 # Build TB
 
-mkdir build
-cd build
+mkdir cmakebuild
+cd cmakebuild
+cmake .. \
+  -DCMAKE_PREFIX_PATH="cmake/packages;$QT_ROOT_DIR" \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CXX_FLAGS="-Werror" \
+  -DCMAKE_EXE_LINKER_FLAGS="-Wl,--fatal-warnings" \
+  -DTB_ENABLE_CCACHE=1 \
+  -DTB_ENABLE_PCH=0 \
+  -DCMAKE_INSTALL_PREFIX=/usr \
+  || exit 1
 
-cmake .. -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_PREFIX_PATH="cmake/packages" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-Werror" -DCMAKE_EXE_LINKER_FLAGS="-Wl,--fatal-warnings" -DTB_SUPPRESS_PCH=1 || exit 1
+ccache -z
 cmake --build . --config Release -- -j $(nproc) || exit 1
+ccache -s
 
 # Run tests (wxgtk needs an X server running for the app to initialize)
 
@@ -32,6 +44,9 @@ cd "$BUILD_DIR/lib/vm/test"
 
 cd "$BUILD_DIR/lib/kdl/test"
 ./kdl-test || exit 1
+
+cd "$BUILD_DIR/lib/upd/test"
+./upd-test || exit 1
 
 cd "$BUILD_DIR/common/test"
 xvfb-run -a ./common-test || exit 1
@@ -48,8 +63,5 @@ cd "$BUILD_DIR"
 
 ldd --verbose ./app/trenchbroom
 
-make install DESTDIR=AppDir | exit 1
-
-../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file ../app/resources/linux/trenchbroom.desktop --icon-file ../app/resources/graphics/images/AppIcon.png --icon-filename trenchbroom --plugin qt
-
-cmake -E md5sum TrenchBroom-x86_64.AppImage > TrenchBroom-x86_64.AppImage.md5
+cpack || exit 1
+./app/generate_checksum.sh

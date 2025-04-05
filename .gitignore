@@ -1,4 +1,3 @@
-Version.h
 .DS_STORE
 Thumbs.db
 *.sublime-workspace
@@ -7,6 +6,7 @@ Thumbs.db
 
 /cmake-build-*
 /build*
+/cmakebuild*
 /codeblocks
 /Xcode*
 /vs2010

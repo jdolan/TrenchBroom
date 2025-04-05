@@ -21,12 +21,13 @@
 
 #include "Macros.h"
 #include "el/EvaluationContext.h"
-#include "el/EvaluationTrace.h"
-#include "el/Expression.h"
 #include "el/Value.h"
 #include "mdl/GameEngineConfig.h"
 #include "mdl/GameEngineProfile.h"
 
+#include "kdl/range_to_vector.h"
+
+#include <ranges>
 #include <string>
 #include <vector>
 
@@ -36,28 +37,36 @@ namespace
 {
 
 mdl::GameEngineProfile parseProfile(
-  const el::Value& value, const el::EvaluationTrace& trace)
+  const el::EvaluationContext& context, const el::Value& value)
 {
-  expectStructure(
-    value, trace, "[ {'name': 'String', 'path': 'String'}, { 'parameters': 'String' } ]");
-
   return {
-    value["name"].stringValue(),
-    std::filesystem::path{value["path"].stringValue()},
-    value["parameters"].stringValue()};
+    value.at(context, "name").stringValue(context),
+    std::filesystem::path{value.at(context, "path").stringValue(context)},
+    value.at(context, "parameters").stringValue(context),
+  };
 }
 
 std::vector<mdl::GameEngineProfile> parseProfiles(
-  const el::Value& value, const el::EvaluationTrace& trace)
+  const el::EvaluationContext& context, const el::Value& value)
 {
-  auto result = std::vector<mdl::GameEngineProfile>{};
-  result.reserve(value.length());
+  return value.arrayValue(context) | std::views::transform([&](const auto& profileValue) {
+           return parseProfile(context, profileValue);
+         })
+         | kdl::to_vector;
+}
 
-  for (size_t i = 0; i < value.length(); ++i)
+Result<mdl::GameEngineConfig> parseGameEngineConfig(
+  el::EvaluationContext& context, const el::ExpressionNode& expression)
+{
+  const auto root = expression.evaluate(context);
+
+  if (const auto version = root.at(context, "version").numberValue(context);
+      version != 1.0)
   {
-    result.push_back(parseProfile(value[i], trace));
+    return Error{fmt::format("Unsupported game engine config version {}", version)};
   }
-  return result;
+
+  return mdl::GameEngineConfig{parseProfiles(context, root.at(context, "profiles"))};
 }
 
 } // namespace
@@ -68,21 +77,12 @@ GameEngineConfigParser::GameEngineConfigParser(
 {
 }
 
-mdl::GameEngineConfig GameEngineConfigParser::parse()
+Result<mdl::GameEngineConfig> GameEngineConfigParser::parse()
 {
-  const auto context = el::EvaluationContext{};
-  auto trace = el::EvaluationTrace{};
-
-  const auto root = parseConfigFile().evaluate(context, trace);
-  expectType(root, trace, el::ValueType::Map);
-
-  expectStructure(root, trace, "[ {'version': 'Number', 'profiles': 'Array'}, {} ]");
-
-  const auto version = root["version"].numberValue();
-  unused(version);
-  assert(version == 1.0);
-
-  return {parseProfiles(root["profiles"], trace)};
+  return parseConfigFile() | kdl::and_then([&](const auto& expression) {
+           return el::withEvaluationContext(
+             [&](auto& context) { return parseGameEngineConfig(context, expression); });
+         });
 }
 
 } // namespace tb::io

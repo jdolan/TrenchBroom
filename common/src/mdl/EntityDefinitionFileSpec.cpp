@@ -19,7 +19,11 @@
 
 #include "EntityDefinitionFileSpec.h"
 
+#include "kdl/reflection_impl.h"
 #include "kdl/string_compare.h"
+
+#include <fmt/format.h>
+#include <fmt/std.h>
 
 #include <cassert>
 #include <string>
@@ -27,6 +31,25 @@
 
 namespace tb::mdl
 {
+
+kdl_reflect_impl(EntityDefinitionFileSpec);
+
+std::ostream& operator<<(std::ostream& lhs, const EntityDefinitionFileSpec::Type rhs)
+{
+  switch (rhs)
+  {
+  case EntityDefinitionFileSpec::Type::Builtin:
+    lhs << "builtin";
+    break;
+  case EntityDefinitionFileSpec::Type::External:
+    lhs << "external";
+    break;
+  case EntityDefinitionFileSpec::Type::Unset:
+    lhs << "unset";
+    break;
+  }
+  return lhs;
+}
 
 EntityDefinitionFileSpec::EntityDefinitionFileSpec() = default;
 
@@ -66,31 +89,6 @@ EntityDefinitionFileSpec EntityDefinitionFileSpec::unset()
   return {};
 }
 
-bool operator<(const EntityDefinitionFileSpec& lhs, const EntityDefinitionFileSpec& rhs)
-{
-  if (lhs.m_type < rhs.m_type)
-  {
-    return true;
-  }
-
-  if (lhs.m_type > rhs.m_type)
-  {
-    return false;
-  }
-
-  return lhs.m_path < rhs.m_path;
-}
-
-bool operator==(const EntityDefinitionFileSpec& lhs, const EntityDefinitionFileSpec& rhs)
-{
-  return lhs.m_type == rhs.m_type && lhs.m_path == rhs.m_path;
-}
-
-bool operator!=(const EntityDefinitionFileSpec& lhs, const EntityDefinitionFileSpec& rhs)
-{
-  return !(lhs == rhs);
-}
-
 bool EntityDefinitionFileSpec::valid() const
 {
   return m_type != Type::Unset;
@@ -113,9 +111,9 @@ const std::filesystem::path& EntityDefinitionFileSpec::path() const
 
 std::string EntityDefinitionFileSpec::asString() const
 {
-  return !valid()    ? ""
-         : builtin() ? "builtin:" + m_path.string()
-                     : "external:" + m_path.string();
+  return !valid()    ? std::string{}
+         : builtin() ? fmt::format("builtin:{}", m_path)
+                     : fmt::format("external:{}", m_path);
 }
 
 EntityDefinitionFileSpec::EntityDefinitionFileSpec(

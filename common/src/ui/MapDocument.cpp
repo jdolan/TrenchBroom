@@ -132,15 +132,20 @@
 #include "vm/vec.h"
 #include "vm/vec_io.h"
 
+#include <fmt/format.h>
+#include <fmt/std.h>
+
 #include <algorithm>
 #include <cassert>
 #include <cstdlib>
 #include <map>
+#include <ranges>
 #include <sstream>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
 #include <vector>
+
 
 namespace tb::ui
 {
@@ -602,7 +607,7 @@ Result<std::unique_ptr<mdl::WorldNode>> loadMap(
     config.entityConfig.scaleExpression, config.entityConfig.setDefaultProperties};
 
   auto parserStatus = io::SimpleParserStatus{logger};
-  return io::Disk::openFile(path) | kdl::transform([&](auto file) {
+  return io::Disk::openFile(path) | kdl::and_then([&](auto file) {
            auto fileReader = file->reader().buffer();
            if (mapFormat == mdl::MapFormat::Unknown)
            {
@@ -722,7 +727,7 @@ Result<void> MapDocument::loadDocument(
   std::shared_ptr<mdl::Game> game,
   const std::filesystem::path& path)
 {
-  info("Loading document from " + path.string());
+  info(fmt::format("Loading document from {}", path));
 
   clearDocument();
 
@@ -843,32 +848,34 @@ PasteType MapDocument::paste(const std::string& str)
   auto parserStatus = io::SimpleParserStatus{logger()};
 
   // Try parsing as entities, then as brushes, in all compatible formats
-  if (const auto nodes = io::NodeReader::read(
-        str,
-        m_world->mapFormat(),
-        m_worldBounds,
-        m_world->entityPropertyConfig(),
-        parserStatus,
-        m_taskManager);
-      !nodes.empty())
-  {
-    return pasteNodes(nodes) ? PasteType::Node : PasteType::Failed;
-  }
-
-  // Try parsing as brush faces
-  try
-  {
-    auto reader = io::BrushFaceReader{str, m_world->mapFormat()};
-    if (const auto faces = reader.read(m_worldBounds, parserStatus); !faces.empty())
-    {
-      return pasteBrushFaces(faces) ? PasteType::BrushFace : PasteType::Failed;
-    }
-  }
-  catch (const ParserException& e)
-  {
-    error() << "Could not parse clipboard contents: " << e.what();
-  }
-  return PasteType::Failed;
+  return io::NodeReader::read(
+           str,
+           m_world->mapFormat(),
+           m_worldBounds,
+           m_world->entityPropertyConfig(),
+           parserStatus,
+           m_taskManager)
+         | kdl::transform([&](auto nodes) {
+             return pasteNodes(nodes) ? PasteType::Node : PasteType::Failed;
+           })
+         | kdl::or_else([&](const auto& nodeError) {
+             // Try parsing as brush faces
+             auto reader = io::BrushFaceReader{str, m_world->mapFormat()};
+             return reader.read(m_worldBounds, parserStatus)
+                    | kdl::transform([&](const auto& faces) {
+                        return !faces.empty() && pasteBrushFaces(faces)
+                                 ? PasteType::BrushFace
+                                 : PasteType::Failed;
+                      })
+                    | kdl::transform_error([&](const auto& faceError) {
+                        error() << "Could not parse clipboard contents as nodes: "
+                                << nodeError.msg;
+                        error() << "Could not parse clipboard contents as faces: "
+                                << faceError.msg;
+                        return PasteType::Failed;
+                      });
+           })
+         | kdl::value();
 }
 
 namespace
@@ -1589,6 +1596,24 @@ void MapDocument::selectFacesWithMaterial(const mdl::Material* material)
   auto transaction = Transaction{*this, "Select Faces with Material"};
   deselectAll();
   selectBrushFaces(faces);
+  transaction.commit();
+}
+
+void MapDocument::selectBrushesWithMaterial(const mdl::Material* material)
+{
+  const auto selectableNodes =
+    mdl::collectSelectableNodes(std::vector<mdl::Node*>{m_world.get()}, *m_editorContext);
+  const auto brushes =
+    selectableNodes | std::views::filter([&](const auto& node) {
+      return std::ranges::any_of(
+        mdl::collectSelectableBrushFaces({node}, *m_editorContext),
+        [&](const auto& faceHandle) { return faceHandle.face().material() == material; });
+    })
+    | kdl::to_vector;
+
+  auto transaction = Transaction{*this, "Select Brushes with Material"};
+  deselectAll();
+  selectNodes(brushes);
   transaction.commit();
 }
 
@@ -4661,7 +4686,7 @@ void MapDocument::loadEntityDefinitions()
 
   m_entityDefinitionManager->loadDefinitions(path, *m_game, status)
     | kdl::transform([&]() {
-        info("Loaded entity definition file " + path.filename().string());
+        info(fmt::format("Loaded entity definition file {}", path.filename()));
         createEntityDefinitionActions();
       })
     | kdl::transform_error([&](auto e) {

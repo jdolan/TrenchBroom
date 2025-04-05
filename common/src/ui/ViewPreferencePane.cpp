@@ -176,8 +176,12 @@ QWidget* ViewPreferencePane::createViewPreferences()
   m_rendererFontSizeCombo->setValidator(new QIntValidator{1, 96});
 
   auto* layout = new FormWithSectionsLayout{};
-  layout->setContentsMargins(0, LayoutConstants::MediumVMargin, 0, 0);
-  layout->setVerticalSpacing(2);
+  layout->setContentsMargins(
+    LayoutConstants::DialogOuterMargin,
+    LayoutConstants::DialogOuterMargin,
+    LayoutConstants::DialogOuterMargin,
+    LayoutConstants::DialogOuterMargin);
+  layout->setVerticalSpacing(LayoutConstants::WideVMargin);
   // override the default to make the sliders take up maximum width
   layout->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
 
@@ -214,7 +218,7 @@ void ViewPreferencePane::bindEvents()
     &ViewPreferencePane::layoutChanged);
   connect(
     m_link2dCameras,
-    &QCheckBox::stateChanged,
+    &QCheckBox::checkStateChanged,
     this,
     &ViewPreferencePane::link2dCamerasChanged);
   connect(
@@ -230,9 +234,15 @@ void ViewPreferencePane::bindEvents()
   connect(
     m_fovSlider, &SliderWithLabel::valueChanged, this, &ViewPreferencePane::fovChanged);
   connect(
-    m_showAxes, &QCheckBox::stateChanged, this, &ViewPreferencePane::showAxesChanged);
+    m_showAxes,
+    &QCheckBox::checkStateChanged,
+    this,
+    &ViewPreferencePane::showAxesChanged);
   connect(
-    m_enableMsaa, &QCheckBox::stateChanged, this, &ViewPreferencePane::enableMsaaChanged);
+    m_enableMsaa,
+    &QCheckBox::checkStateChanged,
+    this,
+    &ViewPreferencePane::enableMsaaChanged);
   connect(
     m_themeCombo,
     QOverload<int>::of(&QComboBox::activated),

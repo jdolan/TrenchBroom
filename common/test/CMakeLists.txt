@@ -9,6 +9,7 @@ set(COMMON_TEST_UTILS_SOURCE
         "${COMMON_TEST_SOURCE_DIR}/catch/Matchers.h"
         "${COMMON_TEST_SOURCE_DIR}/catch/StringMakers.cpp"
         "${COMMON_TEST_SOURCE_DIR}/catch/StringMakers.h"
+        "${COMMON_TEST_SOURCE_DIR}/el/ELTestUtils.h"
         "${COMMON_TEST_SOURCE_DIR}/io/ObjectFile.h"
         "${COMMON_TEST_SOURCE_DIR}/io/TestEnvironment.cpp"
         "${COMMON_TEST_SOURCE_DIR}/io/TestEnvironment.h"
@@ -35,9 +36,10 @@ set(COMMON_TEST_SOURCE
         "${COMMON_TEST_SOURCE_DIR}/mdl/tst_ResourceManager.cpp"
         "${COMMON_TEST_SOURCE_DIR}/catch/tst_Matchers.cpp"
         "${COMMON_TEST_SOURCE_DIR}/catch/tst_StringMakers.cpp"
+        "${COMMON_TEST_SOURCE_DIR}/el/ELTestUtils.cpp"
         "${COMMON_TEST_SOURCE_DIR}/el/tst_EL.cpp"
         "${COMMON_TEST_SOURCE_DIR}/el/tst_Expression.cpp"
-        "${COMMON_TEST_SOURCE_DIR}/el/tst_Interpolator.cpp"
+        "${COMMON_TEST_SOURCE_DIR}/el/tst_Interpolate.cpp"
         "${COMMON_TEST_SOURCE_DIR}/io/tst_AseLoader.cpp"
         "${COMMON_TEST_SOURCE_DIR}/io/tst_AssimpLoader.cpp"
         "${COMMON_TEST_SOURCE_DIR}/io/tst_BspLoader.cpp"
@@ -61,6 +63,7 @@ set(COMMON_TEST_SOURCE
         "${COMMON_TEST_SOURCE_DIR}/io/tst_NodeReader.cpp"
         "${COMMON_TEST_SOURCE_DIR}/io/tst_NodeWriter.cpp"
         "${COMMON_TEST_SOURCE_DIR}/io/tst_ObjSerializer.cpp"
+        "${COMMON_TEST_SOURCE_DIR}/io/tst_PathQt.cpp"
         "${COMMON_TEST_SOURCE_DIR}/io/tst_Quake3ShaderParser.cpp"
         "${COMMON_TEST_SOURCE_DIR}/io/tst_ReadDdsTexture.cpp"
         "${COMMON_TEST_SOURCE_DIR}/io/tst_Reader.cpp"
@@ -131,6 +134,7 @@ set(COMMON_TEST_SOURCE
         "${COMMON_TEST_SOURCE_DIR}/ui/tst_GroupNodes.cpp"
         "${COMMON_TEST_SOURCE_DIR}/ui/tst_HandleDragTracker.cpp"
         "${COMMON_TEST_SOURCE_DIR}/ui/tst_InputEvent.cpp"
+        "${COMMON_TEST_SOURCE_DIR}/ui/tst_LaunchGameEngine.cpp"
         "${COMMON_TEST_SOURCE_DIR}/ui/tst_LayerNodes.cpp"
         "${COMMON_TEST_SOURCE_DIR}/ui/tst_MapDocument.cpp"
         "${COMMON_TEST_SOURCE_DIR}/ui/tst_MoveHandleDragTracker.cpp"
@@ -185,7 +189,7 @@ set(TEST_FIXTURE_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/fixture")
 add_library(common-test-utils OBJECT ${COMMON_TEST_UTILS_SOURCE})
 set_compiler_config(common-test-utils)
 target_include_directories(common-test-utils PUBLIC ${COMMON_TEST_SOURCE_DIR})
-target_link_libraries(common-test-utils PRIVATE common Catch2::Catch2 Qt5::Test)
+target_link_libraries(common-test-utils PRIVATE common Catch2::Catch2 Qt6::Test)
 
 macro(configure_test_target TARGET)
     target_link_libraries(${TARGET} PRIVATE common common-test-utils Catch2::Catch2)
@@ -198,15 +202,17 @@ macro(configure_test_target TARGET)
     set_target_properties(${TARGET} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:${TARGET}>")
 endmacro()
 
+add_subdirectory(cmd-tool)
+
 file(GENERATE
-  OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/ReturnExitCode.h"
-  CONTENT "#define RETURN_EXITCODE_PATH \"$<TARGET_FILE:return-exitcode>\"")
+  OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/CmdTool.h"
+  CONTENT "#define CMD_TOOL_PATH \"$<TARGET_FILE:cmd-tool>\"")
 
 add_executable(common-test ${COMMON_TEST_SOURCE})
 target_include_directories(common-test PRIVATE ${COMMON_TEST_SOURCE_DIR})
 target_include_directories(common-test PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>)
 configure_test_target(common-test)
-add_dependencies(common-test return-exitcode)
+add_dependencies(common-test cmd-tool)
 
 add_executable(common-regression-test ${COMMON_REGRESSION_TEST_SOURCE})
 target_include_directories(common-regression-test PRIVATE ${COMMON_TEST_SOURCE_DIR})
@@ -226,16 +232,7 @@ if(WIN32)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:tinyxml2::tinyxml2>" "${TEST_RESOURCE_DEST_DIR}"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:miniz::miniz>" "${TEST_RESOURCE_DEST_DIR}"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:fmt::fmt>" "${TEST_RESOURCE_DEST_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:GLEW::GLEW>" "${TEST_RESOURCE_DEST_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:Qt5::Widgets>" "${TEST_RESOURCE_DEST_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:Qt5::Gui>" "${TEST_RESOURCE_DEST_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:Qt5::Core>" "${TEST_RESOURCE_DEST_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:Qt5::Svg>" "${TEST_RESOURCE_DEST_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:Qt5::Test>" "${TEST_RESOURCE_DEST_DIR}"
-        COMMAND ${CMAKE_COMMAND} -E make_directory    "${TEST_RESOURCE_DEST_DIR}/platforms"
-        COMMAND ${CMAKE_COMMAND} -E make_directory    "${TEST_RESOURCE_DEST_DIR}/styles"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:Qt5::QWindowsIntegrationPlugin>" "${TEST_RESOURCE_DEST_DIR}/platforms"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:Qt5::QWindowsVistaStylePlugin>" "${TEST_RESOURCE_DEST_DIR}/styles")
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:GLEW::GLEW>" "${TEST_RESOURCE_DEST_DIR}")
 endif()
 
 # Copy some resource files required when initializing TrenchBroomApp
